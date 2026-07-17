@@ -1,0 +1,1910 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>后训练的进化 2024–2026 · 从开源配方到智能体智能</title>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']], processEscapes: true },
+  options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] },
+  startup: { typeset: true }
+};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+<style>
+:root{
+  --bg:#0b1020; --bg2:#0f1630; --panel:#141c3a; --panel2:#1a2447;
+  --text:#e8ecf8; --muted:#9aa7c9; --faint:#5c6890;
+  --accent:#7dd3fc; --line:#26325e;
+  --teal:#2dd4bf; --orange:#fb923c; --violet:#a78bfa; --green:#4ade80;
+  --pink:#f472b6; --blue:#60a5fa; --amber:#fbbf24; --cyan:#22d3ee; --red:#f87171;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);
+  font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",-apple-system,"Segoe UI",sans-serif;
+  font-size:16px;-webkit-font-smoothing:antialiased}
+#deck{position:relative;width:100%;height:100vh;overflow:hidden}
+.slide{position:absolute;inset:0;visibility:hidden;opacity:0;transition:opacity .35s ease;
+  display:flex;flex-direction:column;justify-content:center;align-items:center;
+  padding:3.2rem 4.5rem 3.6rem;overflow-y:auto}
+.slide.active{visibility:visible;opacity:1;z-index:2}
+.inner{width:100%;max-width:1180px;margin:auto}
+.kicker{font-size:.82rem;letter-spacing:.22em;text-transform:uppercase;color:var(--ac,var(--accent));
+  font-weight:600;margin-bottom:.7rem}
+h1{font-size:2.6rem;line-height:1.2;font-weight:700;margin-bottom:1rem}
+h2{font-size:1.85rem;line-height:1.25;font-weight:700;margin-bottom:1.1rem}
+h2 .en{display:block;font-size:.95rem;font-weight:500;color:var(--muted);margin-top:.3rem}
+h3{font-size:1.12rem;font-weight:700;margin:.2rem 0 .5rem;color:var(--ac,var(--accent))}
+p{line-height:1.72;color:var(--text)}
+.sub{color:var(--muted);font-size:1.05rem;line-height:1.7}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem;align-items:start}
+.cols3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1.2rem;align-items:stretch}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:1.1rem 1.3rem;height:100%}
+.card p,.card li{font-size:.95rem;line-height:1.65}
+.card .big{font-size:1.6rem;font-weight:700;color:var(--ac,var(--accent))}
+ul.clean{list-style:none}
+ul.clean li{position:relative;padding-left:1.15rem;margin:.45rem 0;line-height:1.62;color:var(--text)}
+ul.clean li::before{content:"";position:absolute;left:0;top:.62em;width:.45rem;height:.45rem;border-radius:50%;
+  background:var(--ac,var(--accent))}
+ul.clean li b{color:#fff}
+.math{background:var(--bg2);border:1px solid var(--line);border-left:4px solid var(--ac,var(--accent));
+  border-radius:10px;padding:.9rem 1.2rem;margin:.8rem 0;overflow-x:auto;font-size:1.02rem}
+.math .note{font-size:.86rem;color:var(--muted);margin-top:.55rem;line-height:1.6}
+.tag{display:inline-block;background:color-mix(in srgb,var(--ac,var(--accent)) 16%,transparent);
+  color:var(--ac,var(--accent));border:1px solid color-mix(in srgb,var(--ac,var(--accent)) 45%,transparent);
+  border-radius:999px;padding:.14rem .7rem;font-size:.8rem;font-weight:600;margin:0 .3rem .3rem 0}
+table.tb{width:100%;border-collapse:collapse;font-size:.92rem;margin:.6rem 0}
+table.tb th{color:var(--ac,var(--accent));text-align:left;font-weight:700;padding:.5rem .7rem;
+  border-bottom:2px solid var(--line);white-space:nowrap}
+table.tb td{padding:.48rem .7rem;border-bottom:1px solid var(--line);color:var(--text);line-height:1.5}
+table.tb td.dim{color:var(--muted)}
+.diagram{margin:.9rem 0;text-align:center}
+.diagram svg{max-width:100%;height:auto}
+.cap{font-size:.84rem;color:var(--faint);text-align:center;margin-top:.4rem}
+.divider{justify-content:center;text-align:center}
+.divider .chnum{font-size:1rem;letter-spacing:.35em;color:var(--ac,var(--accent));font-weight:600;margin-bottom:1rem}
+.divider h1{font-size:3rem}
+.divider .sub{max-width:760px;margin:1rem auto 0}
+.ribbon{display:flex;gap:.4rem;justify-content:center;margin-top:2.2rem;flex-wrap:wrap}
+.ribbon span{font-size:.78rem;color:var(--faint);border:1px solid var(--line);border-radius:999px;padding:.18rem .65rem}
+.ribbon span.on{color:#0b1020;background:var(--ac,var(--accent));border-color:var(--ac,var(--accent));font-weight:700}
+.foot{position:fixed;bottom:0;left:0;right:0;height:4px;background:var(--line);z-index:10}
+.foot .bar{height:100%;width:0;background:linear-gradient(90deg,var(--teal),var(--violet),var(--blue),var(--amber));transition:width .3s}
+#pager{position:fixed;bottom:12px;right:18px;font-size:.8rem;color:var(--faint);z-index:10;font-variant-numeric:tabular-nums}
+#hint{position:fixed;bottom:12px;left:18px;font-size:.78rem;color:var(--faint);z-index:10}
+.qa{background:linear-gradient(135deg,color-mix(in srgb,var(--ac,var(--accent)) 12%,var(--panel)),var(--panel));
+  border:1px solid color-mix(in srgb,var(--ac,var(--accent)) 40%,var(--line));border-radius:14px;padding:1rem 1.3rem;margin-top:.9rem}
+.qa b{color:var(--ac,var(--accent))}
+.small{font-size:.88rem}
+a{color:var(--accent);text-decoration:none;border-bottom:1px dotted color-mix(in srgb,var(--accent) 50%,transparent)}
+a:hover{border-bottom-style:solid}
+.refs li{margin:.5rem 0;line-height:1.6;font-size:.95rem}
+.refs .who{color:var(--muted);font-size:.85rem}
+[data-ch="0"]{--ac:var(--accent)} [data-ch="1"]{--ac:var(--teal)} [data-ch="2"]{--ac:var(--orange)}
+[data-ch="3"]{--ac:var(--violet)} [data-ch="4"]{--ac:var(--green)} [data-ch="5"]{--ac:var(--pink)}
+[data-ch="6"]{--ac:var(--blue)} [data-ch="7"]{--ac:var(--amber)} [data-ch="8"]{--ac:var(--green)}
+[data-ch="9"]{--ac:var(--cyan)} [data-ch="10"]{--ac:var(--red)}
+.svgtxt{font-family:"PingFang SC","Microsoft YaHei",sans-serif}
+@media print{
+  #deck{height:auto;overflow:visible}
+  .slide{position:relative;visibility:visible;opacity:1;page-break-after:always;height:100vh}
+  .foot,#pager,#hint{display:none}
+}
+@media (max-width:900px){
+  .slide{padding:2rem 1.4rem 3rem}
+  .cols,.cols3{grid-template-columns:1fr}
+  h1{font-size:2rem}.divider h1{font-size:2.2rem}h2{font-size:1.5rem}
+}
+</style>
+</head>
+<body>
+<main id="deck">
+
+<!-- ============ 封面 ============ -->
+<section class="slide" data-ch="0">
+  <div class="inner" style="text-align:center">
+    <div class="kicker">Post-Training · 深度技术之旅 · 2024 → 2026</div>
+    <h1 style="font-size:3.3rem;background:linear-gradient(90deg,#2dd4bf,#a78bfa,#60a5fa,#fbbf24);
+      -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">
+      后训练的进化</h1>
+    <p class="sub" style="font-size:1.3rem;margin-top:.6rem">从开源配方到智能体智能：五大技术报告的数学、架构与工程</p>
+    <p class="sub" style="font-size:1rem;margin-top:.4rem">附：直觉篇（面试视角）与 落地篇（企业级 RAG 搜索系统）</p>
+    <div style="margin-top:2.2rem">
+      <span class="tag" style="--ac:var(--teal)">Tülu 3</span>
+      <span class="tag" style="--ac:var(--orange)">DeepSeek-R1 / Kimi K1.5</span>
+      <span class="tag" style="--ac:var(--violet)">Kimi K2</span>
+      <span class="tag" style="--ac:var(--green)">GLM-5 / 5.2</span>
+      <span class="tag" style="--ac:var(--pink)">Kimi K2.5</span>
+      <span class="tag" style="--ac:var(--blue)">DeepSeek-V4</span>
+      <span class="tag" style="--ac:var(--amber)">MAI-Thinking-1</span>
+    </div>
+    <p class="sub" style="margin-top:2.6rem;font-size:.95rem">全部基于公开技术报告与论文 · 参考链接见文末 · 2026年7月</p>
+  </div>
+</section>
+
+<!-- ============ 故事线 ============ -->
+<section class="slide" data-ch="0">
+  <div class="inner">
+    <div class="kicker">The Story Arc</div>
+    <h2>一条主线：奖励从「人」走向「环境」，训练从「单体」走向「分治与蒸馏」</h2>
+    <div class="diagram">
+    <svg viewBox="0 0 1160 330" xmlns="http://www.w3.org/2000/svg" class="svgtxt">
+      <defs>
+        <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0L10,5L0,10z" fill="#5c6890"/></marker>
+      </defs>
+      <line x1="40" y1="165" x2="1130" y2="165" stroke="#26325e" stroke-width="3" marker-end="url(#ar)"/>
+      <!-- nodes -->
+      <g font-size="13" fill="#e8ecf8" text-anchor="middle">
+        <circle cx="105" cy="165" r="9" fill="#2dd4bf"/>
+        <text x="105" y="130" font-weight="700" fill="#2dd4bf">Tülu 3</text>
+        <text x="105" y="205" fill="#9aa7c9">2024.11</text>
+        <text x="105" y="225" fill="#9aa7c9">开源配方·RLVR诞生</text>
+
+        <circle cx="260" cy="165" r="9" fill="#fb923c"/>
+        <text x="260" y="118" font-weight="700" fill="#fb923c">R1 / K1.5</text>
+        <text x="260" y="138" fill="#fb923c">GRPO·纯RL推理</text>
+        <text x="260" y="205" fill="#9aa7c9">2025.01</text>
+
+        <circle cx="430" cy="165" r="9" fill="#a78bfa"/>
+        <text x="430" y="130" font-weight="700" fill="#a78bfa">Kimi K2</text>
+        <text x="430" y="205" fill="#9aa7c9">2025.07</text>
+        <text x="430" y="225" fill="#9aa7c9">MuonClip·智能体数据·自评奖励</text>
+
+        <circle cx="610" cy="165" r="9" fill="#4ade80"/>
+        <text x="610" y="118" font-weight="700" fill="#4ade80">GLM-5 · K2.5</text>
+        <text x="610" y="138" fill="#4ade80">异步RL infra·多智能体RL</text>
+        <text x="610" y="205" fill="#9aa7c9">2026.02</text>
+
+        <circle cx="800" cy="165" r="9" fill="#60a5fa"/>
+        <text x="800" y="130" font-weight="700" fill="#60a5fa">DeepSeek-V4</text>
+        <text x="800" y="205" fill="#9aa7c9">2026.04</text>
+        <text x="800" y="225" fill="#9aa7c9">专家分治·在线蒸馏·1M上下文</text>
+
+        <circle cx="990" cy="165" r="9" fill="#fbbf24"/>
+        <text x="990" y="118" font-weight="700" fill="#fbbf24">MAI-1 · GLM-5.2</text>
+        <text x="990" y="138" fill="#fbbf24">从零爬山·反作弊RL</text>
+        <text x="990" y="205" fill="#9aa7c9">2026.06</text>
+      </g>
+      <!-- era bands -->
+      <g font-size="12.5" text-anchor="middle">
+        <rect x="45" y="262" width="330" height="30" rx="15" fill="#14203f"/>
+        <text x="210" y="282" fill="#9aa7c9">第一幕：可验证奖励取代奖励模型</text>
+        <rect x="390" y="262" width="330" height="30" rx="15" fill="#14203f"/>
+        <text x="555" y="282" fill="#9aa7c9">第二幕：RL 走进真实环境（智能体）</text>
+        <rect x="735" y="262" width="390" height="30" rx="15" fill="#14203f"/>
+        <text x="930" y="282" fill="#9aa7c9">第三幕：专家分治 + 在线蒸馏整合成为新范式</text>
+      </g>
+    </svg>
+    </div>
+    <div class="cols3" style="margin-top:.4rem">
+      <div class="card"><h3 style="--ac:var(--teal)">奖励的进化</h3><p>人类偏好 RM → 可验证奖励 RLVR → 自评 rubric / 生成式奖励模型 GRM → 反奖励作弊系统</p></div>
+      <div class="card"><h3 style="--ac:var(--violet)">算法的进化</h3><p>PPO → GRPO（去 critic）→ token 级策略梯度 + 训推失配修正（IcePop、log-ratio 裁剪、自适应熵控制）</p></div>
+      <div class="card"><h3 style="--ac:var(--blue)">组织的进化</h3><p>单一 RL 阶段 → 领域专家并行 RL + 在线策略蒸馏（OPD）整合 —— V4、GLM-5.2、MAI 殊途同归</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 基础：RLHF/PPO ============ -->
+<section class="slide" data-ch="0">
+  <div class="inner">
+    <div class="kicker">序章 · 出发点</div>
+    <h2>基础回顾：RLHF 三阶段与 PPO<span class="en">一切故事的起点：InstructGPT (2022) 确立的范式</span></h2>
+    <div class="cols">
+      <div>
+        <div class="diagram">
+        <svg viewBox="0 0 520 210" xmlns="http://www.w3.org/2000/svg" class="svgtxt">
+          <defs><marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#5c6890"/></marker></defs>
+          <g font-size="14" text-anchor="middle" fill="#e8ecf8">
+            <rect x="15" y="70" width="140" height="64" rx="10" fill="#14203f" stroke="#2dd4bf"/>
+            <text x="85" y="97" font-weight="700">① SFT</text>
+            <text x="85" y="118" fill="#9aa7c9" font-size="12">人类示范·模仿学习</text>
+            <line x1="155" y1="102" x2="195" y2="102" stroke="#5c6890" stroke-width="2" marker-end="url(#ar2)"/>
+            <rect x="197" y="70" width="140" height="64" rx="10" fill="#14203f" stroke="#a78bfa"/>
+            <text x="267" y="97" font-weight="700">② 奖励模型 RM</text>
+            <text x="267" y="118" fill="#9aa7c9" font-size="12">偏好对比·Bradley-Terry</text>
+            <line x1="337" y1="102" x2="377" y2="102" stroke="#5c6890" stroke-width="2" marker-end="url(#ar2)"/>
+            <rect x="379" y="70" width="128" height="64" rx="10" fill="#14203f" stroke="#60a5fa"/>
+            <text x="443" y="97" font-weight="700">③ PPO RL</text>
+            <text x="443" y="118" fill="#9aa7c9" font-size="12">最大化 RM 分数</text>
+          </g>
+        </svg></div>
+        <div class="math">
+          \[ \max_{\pi_\theta}\; \mathbb{E}_{x\sim D,\,y\sim\pi_\theta}\big[ r_\phi(x,y)\big] - \beta\, \mathbb{D}_{\mathrm{KL}}\big[\pi_\theta(y|x)\,\|\,\pi_{\mathrm{ref}}(y|x)\big] \]
+          <div class="note">RLHF 总目标：最大化奖励，同时用 KL 惩罚约束策略不偏离参考模型（防止奖励作弊与语言退化）。</div>
+        </div>
+      </div>
+      <div>
+        <div class="math">
+          \[ \mathcal{J}_{\mathrm{PPO}}(\theta)=\mathbb{E}_t\Big[\min\big(\rho_t(\theta)\,\hat A_t,\; \mathrm{clip}(\rho_t(\theta),1\!-\!\varepsilon,1\!+\!\varepsilon)\,\hat A_t\big)\Big],\quad \rho_t(\theta)=\frac{\pi_\theta(a_t|s_t)}{\pi_{\mathrm{old}}(a_t|s_t)} \]
+          <div class="note">PPO 用重要性采样比 \(\rho_t\) 的裁剪构造信任域；优势 \(\hat A_t\) 由<b>独立的价值网络（critic）</b>+ GAE 估计。</div>
+        </div>
+        <div class="qa">
+          <p class="small"><b>这个范式的三个痛点</b>，恰好定义了 2024–2026 后训练的三条演化线：</p>
+          <ul class="clean small">
+            <li><b>RM 会被作弊</b>（reward hacking）且标注昂贵 → 走向<b>可验证奖励</b>；</li>
+            <li><b>Critic 价值网络</b>在长序列稀疏奖励下难以训练、显存翻倍 → 走向 <b>GRPO 组内基线</b>；</li>
+            <li>RL 系统<b>吞吐被 rollout 长尾拖垮</b> → 走向<b>异步、解耦的 RL 基础设施</b>。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 第一章 Tulu 3 ============ -->
+<section class="slide divider" data-ch="1">
+  <div class="inner">
+    <div class="chnum">第 一 章 · 2024.11</div>
+    <h1>Tülu 3：把后训练「配方」完全开源</h1>
+    <p class="sub">Allen Institute for AI（AI2）。在闭源实验室对后训练讳莫如深的年代，Tülu 3 公开了数据、代码、权重与评测的<b>全部细节</b>，并发明了一个此后定义了两年技术路线的词：<b style="color:var(--teal)">RLVR</b>。</p>
+    <div class="ribbon">
+      <span class="on">Tülu 3</span><span>R1/K1.5</span><span>K2</span><span>GLM-5</span><span>K2.5</span><span>V4</span><span>MAI-1</span><span>GLM-5.2</span>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="1">
+  <div class="inner">
+    <div class="kicker">Tülu 3 · 总览</div>
+    <h2>四阶段流水线：数据 → SFT → DPO → RLVR</h2>
+    <div class="diagram">
+    <svg viewBox="0 0 1120 240" xmlns="http://www.w3.org/2000/svg" class="svgtxt">
+      <defs><marker id="ar3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#5c6890"/></marker></defs>
+      <g font-size="14" text-anchor="middle" fill="#e8ecf8">
+        <rect x="20" y="55" width="240" height="110" rx="12" fill="#14203f" stroke="#2dd4bf" stroke-width="1.5"/>
+        <text x="140" y="85" font-weight="700" fill="#2dd4bf">① 数据整备</text>
+        <text x="140" y="112" font-size="12.5" fill="#9aa7c9">prompt 精选 + Persona 驱动合成</text>
+        <text x="140" y="132" font-size="12.5" fill="#9aa7c9">对全部评测集做 n-gram 去污染</text>
+        <text x="140" y="152" font-size="12.5" fill="#9aa7c9">按能力缺口定向补数据</text>
+        <line x1="260" y1="110" x2="300" y2="110" stroke="#5c6890" stroke-width="2" marker-end="url(#ar3)"/>
+        <rect x="302" y="55" width="220" height="110" rx="12" fill="#14203f" stroke="#2dd4bf" stroke-width="1.5"/>
+        <text x="412" y="85" font-weight="700" fill="#2dd4bf">② SFT</text>
+        <text x="412" y="112" font-size="12.5" fill="#9aa7c9">约 94 万条精选样本</text>
+        <text x="412" y="132" font-size="12.5" fill="#9aa7c9">建立基础指令遵循能力</text>
+        <line x1="522" y1="110" x2="562" y2="110" stroke="#5c6890" stroke-width="2" marker-end="url(#ar3)"/>
+        <rect x="564" y="55" width="240" height="110" rx="12" fill="#14203f" stroke="#2dd4bf" stroke-width="1.5"/>
+        <text x="684" y="85" font-weight="700" fill="#2dd4bf">③ 偏好对齐 DPO</text>
+        <text x="684" y="112" font-size="12.5" fill="#9aa7c9">长度归一化 DPO</text>
+        <text x="684" y="132" font-size="12.5" fill="#9aa7c9">on/off-policy 混合偏好对</text>
+        <line x1="804" y1="110" x2="844" y2="110" stroke="#5c6890" stroke-width="2" marker-end="url(#ar3)"/>
+        <rect x="846" y="55" width="250" height="110" rx="12" fill="#1b2c4a" stroke="#2dd4bf" stroke-width="2.5"/>
+        <text x="971" y="85" font-weight="700" fill="#2dd4bf">④ RLVR ★ 首创</text>
+        <text x="971" y="112" font-size="12.5" fill="#9aa7c9">可验证奖励替代奖励模型</text>
+        <text x="971" y="132" font-size="12.5" fill="#9aa7c9">GSM8K · MATH · IFEval</text>
+        <text x="971" y="152" font-size="12.5" fill="#9aa7c9">PPO 优化</text>
+      </g>
+    </svg></div>
+    <div class="cols3">
+      <div class="card"><p class="big">8B / 70B / 405B</p><p>基于 Llama 3.1 base 的三个规模档位，全套配方在三个规模上复现有效。</p></div>
+      <div class="card"><p class="big">全开源</p><p>数据集、数据合成代码、训练代码、评测框架（含防污染的 unseen 套件）全部公开——「配方」本身即贡献。</p></div>
+      <div class="card"><p class="big">超越对手</p><p>Tülu-3-70B 超过 Llama-3.1-70B-Instruct、Qwen-2.5-72B-Instruct 等同规模指令模型。</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="1">
+  <div class="inner">
+    <div class="kicker">Tülu 3 · 数学 ①</div>
+    <h2>偏好对齐：从 RLHF 目标推导 DPO，再做长度归一化</h2>
+    <div class="cols">
+      <div>
+        <p class="small sub">RLHF 目标（上一页）存在闭式最优解：</p>
+        <div class="math">
+          \[ \pi^*(y|x)=\frac{1}{Z(x)}\,\pi_{\mathrm{ref}}(y|x)\exp\!\Big(\tfrac{1}{\beta}r(x,y)\Big) \]
+          <div class="note">反解出 \(r(x,y)=\beta\log\frac{\pi^*(y|x)}{\pi_{\mathrm{ref}}(y|x)}+\beta\log Z(x)\)，代入 Bradley–Terry 偏好模型后配分函数 \(Z\) 消掉。</div>
+        </div>
+        <div class="math">
+          \[ \mathcal{L}_{\mathrm{DPO}}=-\mathbb{E}\Big[\log\sigma\Big(\beta\log\tfrac{\pi_\theta(y_w|x)}{\pi_{\mathrm{ref}}(y_w|x)}-\beta\log\tfrac{\pi_\theta(y_l|x)}{\pi_{\mathrm{ref}}(y_l|x)}\Big)\Big] \]
+          <div class="note">DPO：无需显式 RM 与 RL 循环，直接在偏好对 \((y_w,y_l)\) 上做分类式优化。</div>
+        </div>
+      </div>
+      <div>
+        <p class="small sub">Tülu 3 的选择：<b>长度归一化 DPO</b>（消除「越长越好」的隐性偏置）：</p>
+        <div class="math">
+          \[ \mathcal{L}_{\mathrm{LN\text{-}DPO}}=-\mathbb{E}\Big[\log\sigma\Big(\tfrac{\beta}{|y_w|}\log\tfrac{\pi_\theta(y_w|x)}{\pi_{\mathrm{ref}}(y_w|x)}-\tfrac{\beta}{|y_l|}\log\tfrac{\pi_\theta(y_l|x)}{\pi_{\mathrm{ref}}(y_l|x)}\Big)\Big] \]
+          <div class="note">对序列 log-ratio 按 token 数 \(|y|\) 归一化。消融显示其稳定优于标准 DPO 与 SimPO 等变体。</div>
+        </div>
+        <div class="qa small">
+          <p><b>为什么重要：</b>偏好数据由「on-policy 自采样 + off-policy 他模型输出」混合构造，配合 LLM-as-judge 标注——这套「合成偏好流水线」成为后来所有开源模型偏好阶段的模板。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="1">
+  <div class="inner">
+    <div class="kicker">Tülu 3 · 数学 ②</div>
+    <h2>RLVR：把奖励模型换成「验证函数」<span class="en">Reinforcement Learning with Verifiable Rewards —— 术语在此诞生</span></h2>
+    <div class="cols">
+      <div>
+        <div class="math">
+          \[ r_{\mathrm{RLVR}}(x,y)=\begin{cases} \alpha, & \mathrm{verify}(x,y)=\text{True}\\[2pt] 0, & \text{否则}\end{cases} \]
+          <div class="note">\(\mathrm{verify}\) 是<b>确定性程序</b>：数学答案精确匹配、约束检查器（IFEval）、测试用例执行。没有可学习参数 ⇒ <b>无法被「讨好」</b>。</div>
+        </div>
+        <div class="math">
+          \[ \max_{\pi_\theta}\ \mathbb{E}_{y\sim\pi_\theta}\big[ r_{\mathrm{RLVR}}(x,y)\big]-\beta\,\mathbb{D}_{\mathrm{KL}}\big[\pi_\theta\|\pi_{\mathrm{ref}}\big] \]
+          <div class="note">优化器仍是 <b>PPO</b>（带价值网络；价值网络从通用 RM 初始化效果最好）。训练集：GSM8K、MATH、IFEval。</div>
+        </div>
+      </div>
+      <div>
+        <ul class="clean">
+          <li><b>动机</b>：RM 是奖励作弊的软肋；在「对错可判定」的域，直接把判定器当奖励，信号无噪声、无上限偏置。</li>
+          <li><b>效果</b>：数学与精确指令遵循显著提升，且不损害其他能力；在 405B 上同样有效。</li>
+          <li><b>历史地位</b>：两个月后 DeepSeek-R1 用大规模 RLVR 点燃推理革命；此后 K2 的「verifiable rewards gym」、GLM 的执行环境、MAI 的可执行代码奖励，全部是 RLVR 的规模化延伸。</li>
+        </ul>
+        <div class="qa small"><p><b>一句话遗产：</b>Tülu 3 证明了「后训练配方可以像菜谱一样公开复现」，并给了社区第一个无 RM 的 RL 抓手。故事由此开始。</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 第二章 R1 / K1.5 ============ -->
+<section class="slide divider" data-ch="2">
+  <div class="inner">
+    <div class="chnum">第 二 章 · 2025.01（锚点）</div>
+    <h1>纯 RL 推理革命：DeepSeek-R1 与 Kimi K1.5</h1>
+    <p class="sub">同一周发布的两份报告，共同回答了一个问题：<b>不靠人类示范，只靠可验证奖励的大规模 RL，能否让模型自己学会「思考」？</b>答案是能。此后所有模型的 RL 算法都是这两条血脉的后代。</p>
+    <div class="ribbon">
+      <span>Tülu 3</span><span class="on">R1/K1.5</span><span>K2</span><span>GLM-5</span><span>K2.5</span><span>V4</span><span>MAI-1</span><span>GLM-5.2</span>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="2">
+  <div class="inner">
+    <div class="kicker">锚点 · 数学</div>
+    <h2>GRPO：用「组内相对优势」砍掉价值网络<span class="en">Group Relative Policy Optimization（DeepSeekMath, 2024 → R1, 2025）</span></h2>
+    <div class="math">
+      \[ \mathcal{J}_{\mathrm{GRPO}}(\theta)=\mathbb{E}_{x,\{y_i\}_{i=1}^{G}\sim\pi_{\mathrm{old}}}\Bigg[\frac{1}{G}\sum_{i=1}^{G}\frac{1}{|y_i|}\sum_{t=1}^{|y_i|}\Big(\min\big(\rho_{i,t}\hat A_{i},\ \mathrm{clip}(\rho_{i,t},1\!-\!\varepsilon,1\!+\!\varepsilon)\hat A_{i}\big)-\beta\,\mathbb{D}_{\mathrm{KL}}[\pi_\theta\|\pi_{\mathrm{ref}}]\Big)\Bigg] \]
+      <div class="note">\(\rho_{i,t}=\frac{\pi_\theta(y_{i,t}|x,y_{i,&lt;t})}{\pi_{\mathrm{old}}(y_{i,t}|x,y_{i,&lt;t})}\)；KL 用无偏估计 \(\ \frac{\pi_{\mathrm{ref}}}{\pi_\theta}-\log\frac{\pi_{\mathrm{ref}}}{\pi_\theta}-1\ \)（逐 token、恒非负）。</div>
+    </div>
+    <div class="cols">
+      <div>
+        <div class="math">
+          \[ \hat A_i=\frac{r_i-\mathrm{mean}(r_1,\dots,r_G)}{\mathrm{std}(r_1,\dots,r_G)} \]
+          <div class="note">同一 prompt 采样 \(G\) 条回答，<b>组内均值即基线</b>——价值网络被一次采样统计量替代，序列内所有 token 共享同一优势。</div>
+        </div>
+        <ul class="clean small">
+          <li><b>省一半显存与计算</b>：不再维护和训练与策略同尺寸的 critic；</li>
+          <li><b>与验证奖励天然契合</b>：0/1 奖励下组内归一化即成对比信号；</li>
+          <li><b>代价</b>：优势是响应级而非 token 级 —— 后续所有改进（DAPO、K2.5、MAI）都在修补这一点。</li>
+        </ul>
+      </div>
+      <div>
+        <div class="diagram">
+        <svg viewBox="0 0 520 260" xmlns="http://www.w3.org/2000/svg" class="svgtxt">
+          <g font-size="13" fill="#e8ecf8">
+            <text x="18" y="28" font-weight="700" fill="#f87171">PPO：需要 critic</text>
+            <rect x="18" y="40" width="100" height="38" rx="8" fill="#14203f" stroke="#f87171"/><text x="68" y="64" text-anchor="middle">策略 π</text>
+            <rect x="138" y="40" width="100" height="38" rx="8" fill="#14203f" stroke="#f87171"/><text x="188" y="64" text-anchor="middle">价值网络 V</text>
+            <text x="258" y="64" fill="#9aa7c9">→ GAE → Â(token级)</text>
+            <text x="18" y="128" font-weight="700" fill="#fb923c">GRPO：组内统计做基线</text>
+            <rect x="18" y="142" width="100" height="38" rx="8" fill="#14203f" stroke="#fb923c"/><text x="68" y="166" text-anchor="middle">策略 π</text>
+            <g font-size="12" fill="#9aa7c9">
+              <rect x="140" y="140" width="52" height="20" rx="5" fill="#1b2c4a"/><text x="166" y="154" text-anchor="middle">y₁ r=1</text>
+              <rect x="200" y="140" width="52" height="20" rx="5" fill="#1b2c4a"/><text x="226" y="154" text-anchor="middle">y₂ r=0</text>
+              <rect x="260" y="140" width="52" height="20" rx="5" fill="#1b2c4a"/><text x="286" y="154" text-anchor="middle">y₃ r=0</text>
+              <rect x="320" y="140" width="52" height="20" rx="5" fill="#1b2c4a"/><text x="346" y="154" text-anchor="middle">y₄ r=1</text>
+            </g>
+            <text x="140" y="192" fill="#9aa7c9">mean/std ⇒ Â₁..Â₄（响应级，免 critic）</text>
+            <text x="18" y="238" fill="#4ade80" font-size="12.5">R1-Zero：仅用 准确性奖励 + 格式奖励（&lt;think&gt;…&lt;/think&gt;），从 base 直接 RL</text>
+          </g>
+        </svg></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="2">
+  <div class="inner">
+    <div class="kicker">锚点 · 训练学</div>
+    <h2>R1 的四段流水线与 K1.5 的镜像下降<span class="en">两条路线，一个结论：推理能力可以被 RL「催生」而非「示范」</span></h2>
+    <div class="cols">
+      <div>
+        <h3>DeepSeek-R1：从 Zero 到产品级</h3>
+        <div class="diagram">
+        <svg viewBox="0 0 540 190" xmlns="http://www.w3.org/2000/svg" class="svgtxt">
+          <defs><marker id="ar4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#5c6890"/></marker></defs>
+          <g font-size="12" text-anchor="middle" fill="#e8ecf8">
+            <rect x="10" y="20" width="118" height="52" rx="9" fill="#14203f" stroke="#fb923c"/><text x="69" y="42">① 冷启动 SFT</text><text x="69" y="60" fill="#9aa7c9" font-size="11">少量长CoT种子</text>
+            <line x1="128" y1="46" x2="152" y2="46" stroke="#5c6890" stroke-width="2" marker-end="url(#ar4)"/>
+            <rect x="154" y="20" width="118" height="52" rx="9" fill="#14203f" stroke="#fb923c"/><text x="213" y="42">② 推理 RL</text><text x="213" y="60" fill="#9aa7c9" font-size="11">GRPO+语言一致奖励</text>
+            <line x1="272" y1="46" x2="296" y2="46" stroke="#5c6890" stroke-width="2" marker-end="url(#ar4)"/>
+            <rect x="298" y="20" width="118" height="52" rx="9" fill="#14203f" stroke="#fb923c"/><text x="357" y="42">③ 拒绝采样+SFT</text><text x="357" y="60" fill="#9aa7c9" font-size="11">80万样本重训</text>
+            <line x1="416" y1="46" x2="440" y2="46" stroke="#5c6890" stroke-width="2" marker-end="url(#ar4)"/>
+            <rect x="442" y="20" width="92" height="52" rx="9" fill="#14203f" stroke="#fb923c"/><text x="488" y="42">④ 全场景RL</text><text x="488" y="60" fill="#9aa7c9" font-size="11">推理+偏好</text>
+            <text x="270" y="120" fill="#fb923c" font-size="13" font-weight="700">R1-Zero 的启示：RL 中自发出现反思、验证、变长思考</text>
+            <text x="270" y="145" fill="#9aa7c9" font-size="12">「aha moment」—— 行为不是被教的，是被奖励结构诱导出来的</text>
+            <text x="270" y="170" fill="#9aa7c9" font-size="12">蒸馏版（R1→Qwen/Llama）证明：小模型学推理，蒸馏 &gt; 直接RL</text>
+          </g>
+        </svg></div>
+      </div>
+      <div>
+        <h3>Kimi K1.5：在线策略镜像下降（OPMD）</h3>
+        <div class="math">
+          \[ \mathcal{L}(\theta)=\mathbb{E}_{(x,y)\sim\pi_{\mathrm{old}}}\Big[\big(r(x,y)-\bar r-\tau\log\tfrac{\pi_\theta(y|x)}{\pi_{\mathrm{old}}(y|x)}\big)^{2}\Big] \]
+          <div class="note">来自相对熵正则的策略迭代 \(\max_\pi \mathbb{E}[r]-\tau\mathrm{KL}(\pi\|\pi_{\mathrm{old}})\) 的闭式解 \(\pi^*\!\propto\!\pi_{\mathrm{old}}e^{r/\tau}\)：把「匹配最优策略」写成平方损失，\(\bar r\) 近似配分函数项 \(\tau\log Z\)。梯度 = 带基线的策略梯度 + \(\ell_2\) 正则。</div>
+        </div>
+        <ul class="clean small">
+          <li><b>长度惩罚</b>：对过长回答扣分，防「无效思考」；<b>long2short</b>（模型合并、最短拒绝采样、DPO）把长 CoT 能力压进短回答；</li>
+          <li><b>课程</b>：难度分级采样 + 按成功率的优先采样；</li>
+          <li><b>底层判断</b>与 R1 相同：<b>不需要 MCTS/价值树搜索</b>，「自回归 CoT 即隐式搜索」。</li>
+        </ul>
+        <div class="qa small"><p><b>伏笔：</b>这条平方损失血脉将进化为 K2 的 RL 算法，再进化为 K2.5 带 token 级裁剪的混合目标（第五章）。</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 第三章 Kimi K2 ============ -->
+<section class="slide divider" data-ch="3">
+  <div class="inner">
+    <div class="chnum">第 三 章 · 2025.07</div>
+    <h1>Kimi K2：智能体智能的开源宣言</h1>
+    <p class="sub">Moonshot AI。1.04T 参数 MoE（32B 激活），15.5T token 预训练<b>零损失尖峰</b>。三大贡献：MuonClip 优化器、大规模智能体数据合成、可验证奖励 + 自评 rubric 的联合 RL。故事从「会推理」走向「会做事」。</p>
+    <div class="ribbon">
+      <span>Tülu 3</span><span>R1/K1.5</span><span class="on">K2</span><span>GLM-5</span><span>K2.5</span><span>V4</span><span>MAI-1</span><span>GLM-5.2</span>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="3">
+  <div class="inner">
+    <div class="kicker">K2 · 数学 ① 优化器</div>
+    <h2>MuonClip = Muon + QK-Clip：驯服注意力 logit 爆炸<span class="en">token 效率与万亿级稳定性可以兼得</span></h2>
+    <div class="cols">
+      <div>
+        <p class="small sub"><b>Muon 更新</b>（矩阵参数 \(\mathbf W\in\mathbb{R}^{n\times m}\)）：动量矩阵经 Newton–Schulz 迭代正交化，并匹配 Adam 的更新 RMS：</p>
+        <div class="math small">
+          \[ \mathbf M_t=\mu\mathbf M_{t-1}+\mathbf G_t,\qquad \mathbf O_t=\mathrm{NS}(\mathbf M_t)\cdot\sqrt{\max(n,m)}\cdot 0.2 \]
+          \[ \mathbf W_t=\mathbf W_{t-1}-\eta\,(\mathbf O_t+\lambda\mathbf W_{t-1}) \]
+          <div class="note">NS 迭代 \(X_{k}=aX_{k-1}+b(X_{k-1}X_{k-1}^{\!\top})X_{k-1}+c(X_{k-1}X_{k-1}^{\!\top})^2X_{k-1}\) 把奇异值推向 1（近似 \(UV^\top\) 正交化）。同算力下 token 效率显著优于 AdamW。</div>
+        </div>
+        <p class="small sub"><b>问题</b>：Muon 的更新谱更「满」，训练中注意力 logit 迅速超过 1000 → 损失尖峰甚至发散。soft-cap 治标；QK-Norm 对 MLA 不可用（K 矩阵推理时不显式物化）。</p>
+      </div>
+      <div>
+        <p class="small sub"><b>QK-Clip</b>：每步更新后监控每个头的最大 logit，超阈值则直接<b>缩放权重</b>（不改变当步前向/反向）：</p>
+        <div class="math small">
+          \[ S^h_{\max}=\tfrac{1}{\sqrt d}\max_{\mathbf X\in B}\max_{i,j}\ \mathbf Q_i^h\mathbf K_j^{h\top},\qquad \gamma_h=\min\!\big(1,\ \tau/S^h_{\max}\big) \]
+          \[ \mathbf W^{h}_{qc}\!\leftarrow\!\sqrt{\gamma_h}\,\mathbf W^{h}_{qc},\quad \mathbf W^{h}_{kc}\!\leftarrow\!\sqrt{\gamma_h}\,\mathbf W^{h}_{kc},\quad \mathbf W^{h}_{qr}\!\leftarrow\!\gamma_h\,\mathbf W^{h}_{qr} \]
+          <div class="note">按头裁剪（只有极少数头爆炸）；MLA 中共享的旋转键 \(\mathbf k^R\) 不动以免跨头串扰。K2 取 \(\tau=100\)：logits 初期贴着 100 封顶，约 30% 步数后自然回落 —— 之后 QK-Clip「自动退休」，对模型质量无损。</div>
+        </div>
+        <div class="qa small"><p><b>影响：</b>MuonClip 成为 Kimi 系(K2/K2.5) 预训练与 RL 的默认优化器；DeepSeek-V4 也转投 Muon（附加混合 Newton–Schulz 与自己的防爆手段）。优化器从「炼丹细节」升格为报告主角。</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="3">
+  <div class="inner">
+    <div class="kicker">K2 · 数据</div>
+    <h2>大规模智能体数据合成：教会模型「用工具做事」<span class="en">稀缺能力（多步规划、工具调用）在自然数据里几乎不存在 —— 那就制造它</span></h2>
+    <div class="diagram">
+    <svg viewBox="0 0 1120 300" xmlns="http://www.w3.org/2000/svg" class="svgtxt">
+      <defs><marker id="ar5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#5c6890"/></marker></defs>
+      <g font-size="13" text-anchor="middle" fill="#e8ecf8">
+        <rect x="15" y="40" width="250" height="200" rx="12" fill="#14203f" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="140" y="70" font-weight="700" fill="#a78bfa">① 工具与领域库</text>
+        <text x="140" y="100" font-size="12" fill="#9aa7c9">3000+ 真实 MCP/GitHub 工具</text>
+        <text x="140" y="122" font-size="12" fill="#9aa7c9">+ 2万余合成工具（领域演化）</text>
+        <text x="140" y="144" font-size="12" fill="#9aa7c9">覆盖金融/软件/机器人等</text>
+        <line x1="265" y1="140" x2="305" y2="140" stroke="#5c6890" stroke-width="2" marker-end="url(#ar5)"/>
+        <rect x="307" y="40" width="250" height="200" rx="12" fill="#14203f" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="432" y="70" font-weight="700" fill="#a78bfa">② 智能体 × 任务生成</text>
+        <text x="432" y="100" font-size="12" fill="#9aa7c9">多样系统提示 + 工具组合</text>
+        <text x="432" y="122" font-size="12" fill="#9aa7c9">生成带评分标准(rubric)的任务</text>
+        <text x="432" y="144" font-size="12" fill="#9aa7c9">难度谱系化</text>
+        <line x1="557" y1="140" x2="597" y2="140" stroke="#5c6890" stroke-width="2" marker-end="url(#ar5)"/>
+        <rect x="599" y="40" width="250" height="200" rx="12" fill="#14203f" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="724" y="70" font-weight="700" fill="#a78bfa">③ 轨迹仿真与执行</text>
+        <text x="724" y="100" font-size="12" fill="#9aa7c9">用户模拟器多轮交互</text>
+        <text x="724" y="122" font-size="12" fill="#9aa7c9">工具模拟器返回状态/噪声</text>
+        <text x="724" y="144" font-size="12" fill="#9aa7c9">代码类任务→真实沙箱执行</text>
+        <line x1="849" y1="140" x2="889" y2="140" stroke="#5c6890" stroke-width="2" marker-end="url(#ar5)"/>
+        <rect x="891" y="40" width="215" height="200" rx="12" fill="#1b2c4a" stroke="#a78bfa" stroke-width="2.5"/>
+        <text x="998" y="70" font-weight="700" fill="#a78bfa">④ 质量过滤</text>
+        <text x="998" y="100" font-size="12" fill="#9aa7c9">LLM judge 按 rubric 评审</text>
+        <text x="998" y="122" font-size="12" fill="#9aa7c9">仅保留高质量轨迹→SFT</text>
+        <text x="998" y="144" font-size="12" fill="#9aa7c9">可验证部分进入 RL gym</text>
+        <text x="560" y="278" fill="#9aa7c9" font-size="12.5">混合保真度：仿真规模大（廉价、多样）＋ 真实执行保真高（代码/测试）——「模拟为主、执行兜底」</text>
+      </g>
+    </svg></div>
+    <p class="sub small" style="margin-top:.3rem">预训练侧同样在「榨取 token 效率」：知识与数学文本的<b>改写增强</b>（风格多样化 + 分块自回归改写 + 保真校验）。消融：同一语料改写 10 次训 1 epoch（28.94%）优于原文训 10 epoch（23.76%，SimpleQA）。</p>
+  </div>
+</section>
+
+<section class="slide" data-ch="3">
+  <div class="inner">
+    <div class="kicker">K2 · 数学 ② RL</div>
+    <h2>联合 RL：可验证奖励 Gym + 自评 Rubric 奖励<span class="en">把 RLVR 推广到不可验证的开放域 —— 模型学会「给自己打分」</span></h2>
+    <div class="cols">
+      <div>
+        <h3>算法：K1.5 血脉 + 三个稳定器</h3>
+        <div class="math small">
+          \[ \mathcal{L}(\theta)=\mathbb{E}\Big[\tfrac{1}{K}\sum_{i=1}^{K}\big(r(x,y_i)-\bar r(x)-\tau\log\tfrac{\pi_\theta(y_i|x)}{\pi_{\mathrm{old}}(y_i|x)}\big)^2\Big] \]
+          <div class="note">OPMD 平方损失 + 组均值基线（继承 K1.5，仍无 critic）。</div>
+        </div>
+        <ul class="clean small">
+          <li><b>预算控制</b>：按任务设 token 预算，超限惩罚 —— 强制「简洁思考」；</li>
+          <li><b>PTX 辅助损失</b>：RL 批次混入高质量预训练/SFT 数据的交叉熵项，抗遗忘；</li>
+          <li><b>温度衰减</b>：rollout 采样温度先高后低，先探索后收敛。</li>
+        </ul>
+        <p class="small sub">基础设施：训练/推理引擎<b>同机共居</b>（colocated），每步做引擎切换与权重广播 —— 这是同步 RL 的极致，也是下一章异步革命的反衬。</p>
+      </div>
+      <div>
+        <h3>奖励：两条腿走路</h3>
+        <div class="diagram">
+        <svg viewBox="0 0 540 250" xmlns="http://www.w3.org/2000/svg" class="svgtxt">
+          <g font-size="12.5" fill="#e8ecf8">
+            <rect x="10" y="15" width="250" height="100" rx="10" fill="#14203f" stroke="#4ade80"/>
+            <text x="135" y="40" text-anchor="middle" font-weight="700" fill="#4ade80">可验证奖励 Gym（RLVR）</text>
+            <text x="135" y="64" text-anchor="middle" fill="#9aa7c9" font-size="11.5">数学/STEM · 代码执行与单测</text>
+            <text x="135" y="84" text-anchor="middle" fill="#9aa7c9" font-size="11.5">复杂指令遵循 · 事实性 · 安全对抗</text>
+            <rect x="280" y="15" width="250" height="100" rx="10" fill="#14203f" stroke="#f472b6"/>
+            <text x="405" y="40" text-anchor="middle" font-weight="700" fill="#f472b6">自评 Rubric 奖励（不可验证域）</text>
+            <text x="405" y="64" text-anchor="middle" fill="#9aa7c9" font-size="11.5">Actor 生成 K 条回答</text>
+            <text x="405" y="84" text-anchor="middle" fill="#9aa7c9" font-size="11.5">Critic(自身) 按 rubric 两两排序→奖励</text>
+            <path d="M 405 115 C 405 150 135 150 135 115" stroke="#fbbf24" stroke-width="2" fill="none" marker-end="url(#ar5)"/>
+            <text x="270" y="168" text-anchor="middle" fill="#fbbf24" font-size="12">闭环：Critic 持续用可验证信号「校准」——</text>
+            <text x="270" y="188" text-anchor="middle" fill="#fbbf24" font-size="12">客观域的判断力迁移到主观域评审</text>
+            <text x="270" y="225" text-anchor="middle" fill="#9aa7c9" font-size="12">Rubric = 核心准则（清晰/客观/无谄媚）+ 情境化规范准则 + 人工先验</text>
+          </g>
+        </svg></div>
+        <div class="qa small"><p><b>结果：</b>非思考模式下 SWE-bench Verified 65.8、Tau2-bench 66.1、AIME25 49.5 —— 当时最强开源，逼近 Claude 4 系。<b>伏笔：</b>自评 rubric 在 K2.5 长成通用「生成式奖励模型 GRM」。</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 第四章 GLM-5 ============ -->
+<section class="slide divider" data-ch="4">
+  <div class="inner">
+    <div class="chnum">第 四 章 · 2026.02</div>
+    <h1>GLM-5：RL 规模化的工程学</h1>
+    <p class="sub">智谱（Z.ai）。「From Vibe Coding to Agentic Engineering」。744B MoE，MIT 协议。这一章的主角不只是算法，而是<b>让智能体 RL 真正跑起来的系统</b>：slime 框架、异步训练、训推失配修正 IcePop，以及跨阶段在线蒸馏。</p>
+    <div class="ribbon">
+      <span>Tülu 3</span><span>R1/K1.5</span><span>K2</span><span class="on">GLM-5</span><span>K2.5</span><span>V4</span><span>MAI-1</span><span>GLM-5.2</span>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="4">
+  <div class="inner">
+    <div class="kicker">GLM-5 · 总览</div>
+    <h2>顺序式 RL 流水线 + 三种思考形态<span class="en">Reasoning RL → Agentic RL → General RL，用跨阶段蒸馏防遗忘</span></h2>
+    <div class="cols">
+      <div>
+        <div class="diagram">
+        <svg viewBox="0 0 540 240" xmlns="http://www.w3.org/2000/svg" class="svgtxt">
+          <defs><marker id="ar6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#5c6890"/></marker></defs>
+          <g font-size="12.5" text-anchor="middle" fill="#e8ecf8">
+            <rect x="10" y="20" width="110" height="52" rx="9" fill="#14203f" stroke="#4ade80"/><text x="65" y="42">多任务 SFT</text><text x="65" y="60" fill="#9aa7c9" font-size="11">202,752 上下文</text>
+            <line x1="120" y1="46" x2="146" y2="46" stroke="#5c6890" stroke-width="2" marker-end="url(#ar6)"/>
+            <rect x="148" y="20" width="110" height="52" rx="9" fill="#14203f" stroke="#4ade80"/><text x="203" y="42">推理 RL</text><text x="203" y="60" fill="#9aa7c9" font-size="11">数学/代码/科学</text>
+            <line x1="258" y1="46" x2="284" y2="46" stroke="#5c6890" stroke-width="2" marker-end="url(#ar6)"/>
+            <rect x="286" y="20" width="110" height="52" rx="9" fill="#14203f" stroke="#4ade80"/><text x="341" y="42">智能体 RL</text><text x="341" y="60" fill="#9aa7c9" font-size="11">SWE/终端/搜索</text>
+            <line x1="396" y1="46" x2="422" y2="46" stroke="#5c6890" stroke-width="2" marker-end="url(#ar6)"/>
+            <rect x="424" y="20" width="106" height="52" rx="9" fill="#14203f" stroke="#4ade80"/><text x="477" y="42">通用 RL</text><text x="477" y="60" fill="#9aa7c9" font-size="11">人类风格对齐</text>
+            <rect x="120" y="120" width="300" height="46" rx="23" fill="#1b2c4a" stroke="#fbbf24" stroke-width="2"/>
+            <text x="270" y="148" fill="#fbbf24" font-weight="700">跨阶段在线策略蒸馏（OPD）</text>
+            <path d="M 203 72 L 203 108 M 341 72 L 341 108 M 477 72 L 477 116" stroke="#fbbf24" stroke-width="1.6" stroke-dasharray="4 3" fill="none"/>
+            <text x="270" y="196" fill="#9aa7c9" font-size="12">每进入新阶段，用上一阶段模型做教师、当前模型自采样轨迹上做蒸馏</text>
+            <text x="270" y="216" fill="#9aa7c9" font-size="12">⇒ 吃到每阶段增益、不吐掉旧能力（防灾难性遗忘）</text>
+          </g>
+        </svg></div>
+      </div>
+      <div>
+        <ul class="clean">
+          <li><b>交错思考</b>（Interleaved）：每次回复与<b>每次工具调用前</b>都先思考 —— 提升指令遵循与调用质量；</li>
+          <li><b>保留思考</b>（Preserved）：编码智能体场景下跨轮保留全部思考块，复用推理而非重推 —— 长程任务一致性；</li>
+          <li><b>轮级思考</b>（Turn-level）：单会话内按轮开关思考，权衡延迟与精度。</li>
+        </ul>
+        <div class="qa small">
+          <p><b>SFT 细节的巧思：</b>智能体轨迹中的<b>错误片段保留但 loss 屏蔽</b> —— 模型见过错误、学会纠错，却不模仿错误。难度过滤：只留 GLM-4.7 都觉得难的题。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="4">
+  <div class="inner">
+    <div class="kicker">GLM-5 · 数学</div>
+    <h2>IcePop：修正「训练-推理失配」的 GRPO<span class="en">MoE 大规模 RL 的隐形杀手：同一模型，两套引擎，两个分布</span></h2>
+    <div class="math">
+      \[ \mathcal{L}(\theta)=-\,\mathbb{E}_{x,\{y_i\}\sim\pi^{\text{infer}}_{\theta_{\mathrm{old}}}}\Bigg[\frac{1}{G}\sum_{i=1}^{G}\frac{1}{|y_i|}\sum_{t=1}^{|y_i|}\ \underbrace{\mathrm{pop}\big(\rho_{i,t},\ \tfrac{1}{\beta},\ \beta\big)}_{\text{训推失配门控}}\cdot\ \min\Big(r_{i,t}\hat A_{i},\ \mathrm{clip}\big(r_{i,t},1\!-\!\epsilon_{\mathrm{low}},1\!+\!\epsilon_{\mathrm{high}}\big)\hat A_{i}\Big)\Bigg] \]
+      <div class="note">\(\rho_{i,t}=\pi^{\text{train}}_\theta / \pi^{\text{infer}}_\theta\) 是<b>同一参数在训练引擎与推理引擎下的概率比</b>；\(\mathrm{pop}(\cdot)\) 将 \(\rho\notin[1/\beta,\beta]\) 的 token 梯度置零。\(r_{i,t}\) 是常规重要性比（对 \(\pi_{\mathrm{old}}\)），非对称裁剪 \(\epsilon_{\mathrm{low}}\neq\epsilon_{\mathrm{high}}\)（DAPO 谱系）。相比原始 IcePop，GLM-5 <b>去掉了 KL 正则</b>以加速提升。</div>
+    </div>
+    <div class="cols">
+      <div class="card">
+        <h3>为什么会失配？</h3>
+        <p class="small">训练用 Megatron、rollout 用 SGLang：算子实现、批不变性、精度路径都不同。MoE 下微小数值差被路由放大 —— 推理引擎认为概率 0.3 的 token，训练引擎可能算出 0.2。梯度按错误的分布加权 ⇒ 训练悄然崩坏。</p>
+      </div>
+      <div class="card">
+        <h3>同一问题的三种解法（跨报告对照）</h3>
+        <p class="small"><b>GLM-5</b>：IcePop 门控（算法侧屏蔽）；<b>K2.5</b>：对 log-ratio 的 token 级硬裁剪（下一章）；<b>MAI / DeepSeek-V4</b>：干脆做<b>批不变、逐位确定</b>的算子库，从根上消灭失配（基础设施侧）。异步智能体 RL 里 GLM-5 还叠加 token-in-token-out（杜绝重分词漂移）与双侧重要性采样裁剪。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="4">
+  <div class="inner">
+    <div class="kicker">GLM-5 · 基础设施</div>
+    <h2>slime + APRIL：异步 RL 的解剖<span class="en">rollout 占 RL 总时长 90%+，长尾样本让 GPU 集体围观 —— 系统问题要用系统解</span></h2>
+    <div class="cols">
+      <div>
+        <div class="diagram">
+        <svg viewBox="0 0 540 260" xmlns="http://www.w3.org/2000/svg" class="svgtxt">
+          <g font-size="12.5" fill="#e8ecf8">
+            <rect x="10" y="18" width="240" height="90" rx="10" fill="#14203f" stroke="#4ade80"/>
+            <text x="130" y="44" text-anchor="middle" font-weight="700" fill="#4ade80">训练侧 · Megatron-LM</text>
+            <text x="130" y="66" text-anchor="middle" fill="#9aa7c9" font-size="11.5">梯度更新 / 并行策略</text>
+            <text x="130" y="86" text-anchor="middle" fill="#9aa7c9" font-size="11.5">吃「已完成轨迹」流</text>
+            <rect x="290" y="18" width="240" height="90" rx="10" fill="#14203f" stroke="#4ade80"/>
+            <text x="410" y="44" text-anchor="middle" font-weight="700" fill="#4ade80">推理侧 · SGLang 集群</text>
+            <text x="410" y="66" text-anchor="middle" fill="#9aa7c9" font-size="11.5">高吞吐 rollout / 环境交互</text>
+            <text x="410" y="86" text-anchor="middle" fill="#9aa7c9" font-size="11.5">服务器化多任务环境接入</text>
+            <path d="M 250 50 L 290 50" stroke="#fbbf24" stroke-width="2" marker-end="url(#ar6)"/>
+            <path d="M 290 76 L 250 76" stroke="#fbbf24" stroke-width="2" marker-end="url(#ar6)"/>
+            <text x="270" y="130" text-anchor="middle" fill="#fbbf24" font-size="12">权重异步推送 ↑ / 轨迹异步回流 ↓ —— 训推解耦、各自满载</text>
+            <text x="270" y="162" text-anchor="middle" font-weight="700" fill="#4ade80" font-size="13">slime：GLM-4.7 / 5 / 5.1 / 5.2 实际使用的开源 RL 框架</text>
+            <text x="270" y="186" text-anchor="middle" fill="#9aa7c9" font-size="12">心跳驱动容错 · 路由回放 · 投机解码 · 已验证于 Qwen3 / DeepSeek / Llama</text>
+            <text x="270" y="222" text-anchor="middle" fill="#9aa7c9" font-size="12">生态：华为昇腾 slime-ascend 已并入社区（国产芯片适配）</text>
+          </g>
+        </svg></div>
+      </div>
+      <div>
+        <h3>APRIL：主动部分回滚（arXiv 2509.18521）</h3>
+        <ul class="clean small">
+          <li><b>超额发车</b>：每步发出多于目标数的 rollout 请求；</li>
+          <li><b>达标即停</b>：凑齐目标条数立刻终止本轮，不等长尾；</li>
+          <li><b>断点回收</b>：未完成的响应存入池中，<b>下一步继续生成</b>（partial rollout 复用）。</li>
+        </ul>
+        <div class="math small">
+          <div class="note" style="margin-top:0">效果：GRPO / DAPO / GSPO 上 rollout 吞吐提升至多 <b>44%</b>，收敛更快，最终精度至多 +8%；框架与硬件无关，已并入 slime。代价：被回收的轨迹前后段来自不同策略版本 —— 又一种「轻度 off-policy」，恰好由 IcePop / 双侧裁剪兜底。<b>算法与系统在此互为因果。</b></div>
+        </div>
+        <div class="qa small"><p><b>环境规模化</b>：SWE 环境从真实仓库批量构建；终端环境从种子任务与网页语料双路合成；搜索任务配上下文管理。<b>环境（而非数据集）成为新的稀缺资产。</b></p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 第五章 K2.5 ============ -->
+<section class="slide divider" data-ch="5">
+  <div class="inner">
+    <div class="chnum">第 五 章 · 2026.02</div>
+    <h1>Kimi K2.5：视觉智能体与多智能体 RL</h1>
+    <p class="sub">「Visual Agentic Intelligence」。在 K2 之上做约 15T token 的<b>文本-视觉联合续训</b>，用 Zero-Vision SFT 与联合 RL 让两个模态互相成就；再用 <b>PARL</b> 训练一个能指挥百个子智能体的调度者 —— RL 第一次显式优化「并行组织」。</p>
+    <div class="ribbon">
+      <span>Tülu 3</span><span>R1/K1.5</span><span>K2</span><span>GLM-5</span><span class="on">K2.5</span><span>V4</span><span>MAI-1</span><span>GLM-5.2</span>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="5">
+  <div class="inner">
+    <div class="kicker">K2.5 · 反直觉发现</div>
+    <h2>Zero-Vision SFT：不用视觉数据，激活视觉能力<span class="en">联合预训练已对齐模态 —— 后训练只需「点火」，火自己会烧过去</span></h2>
+    <div class="cols">
+      <div>
+        <ul class="clean">
+          <li><b>早融合更优</b>：固定视觉+文本 token 总预算下，<b>早注入、低比例</b>的视觉数据优于「后期高比例灌注」（对照实验：早期 10%:90% 全面优于晚期 50%:50%）；</li>
+          <li><b>Zero-Vision SFT</b>：SFT 阶段<b>只用文本数据</b>；所有图像操作经由 IPython 程序化代理（裁剪、二值化、计数……）。人工设计的视觉轨迹反而伤泛化；</li>
+          <li><b>联合 RL 按「能力」而非「模态」分域</b>：知识/推理/代码/智能体各域同时吃纯文本与多模态任务，GRM 跨模态统一打分。</li>
+        </ul>
+      </div>
+      <div>
+        <table class="tb">
+          <tr><th>文本基准</th><th>视觉RL前</th><th>视觉RL后</th><th>Δ</th></tr>
+          <tr><td>MMLU-Pro</td><td class="dim">84.7</td><td>86.4</td><td style="color:var(--pink)">+1.7</td></tr>
+          <tr><td>GPQA-Diamond</td><td class="dim">84.3</td><td>86.4</td><td style="color:var(--pink)">+2.1</td></tr>
+          <tr><td>LongBench v2</td><td class="dim">56.7</td><td>58.9</td><td style="color:var(--pink)">+2.2</td></tr>
+        </table>
+        <div class="qa small"><p><b>跨模态迁移是双向的：</b>视觉 RL 不仅没有挤占文本能力，反而<b>提升</b>了文本成绩（校准了结构化信息抽取类的不确定性）。「文本引导视觉、视觉反哺文本」。</p></div>
+        <p class="small sub" style="margin-top:.6rem">视觉奖励工程：定位/点选用 IoU·高斯软匹配的 F1；分割用光栅化 IoU；OCR 用归一化编辑距离；计数用绝对误差 —— <b>每类任务一把专属尺子。</b></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="5">
+  <div class="inner">
+    <div class="kicker">K2.5 · 数学 ① 策略优化</div>
+    <h2>K2.5 的 RL 目标：OPMD 血脉 + token 级失配裁剪<span class="en">与 GLM 的 IcePop 殊途同归 —— 却是从算法侧动手</span></h2>
+    <div class="math">
+      \[ \mathcal{L}_{\mathrm{RL}}(\theta)=\mathbb{E}_{x\sim\mathcal D}\Bigg[\frac{1}{N}\sum_{j=1}^{K}\sum_{i=1}^{|y_j|}\underbrace{\mathrm{Clip}\Big(\tfrac{\pi_\theta(y_j^i|x,y_j^{0:i})}{\pi_{\mathrm{old}}(y_j^i|x,y_j^{0:i})},\ \alpha,\ \beta\Big)}_{\text{token级门控（对log-ratio，双侧）}}\big(r(x,y_j)-\bar r(x)\big)\ -\ \tau\Big(\log\tfrac{\pi_\theta(y_j^i|x,y_j^{0:i})}{\pi_{\mathrm{old}}(y_j^i|x,y_j^{0:i})}\Big)^{2}\Bigg] \]
+      <div class="note">\(N=\sum_j |y_j|\)（全批 token 数），\(\bar r(x)=\frac1K\sum_j r(x,y_j)\) 组均值基线。<b>与 PPO 裁剪的本质区别</b>：门控只看 log-ratio 是否越界（\([\alpha,\beta]\) 之外梯度置零），<b>与优势符号无关</b> —— 目的不是构造悲观下界，而是硬性约束 off-policy 漂移（训推失配 + 异步陈旧度都被它挡住）。第二项 \(\tau(\log\rho)^2\) 是 K1.5 平方正则的直系遗产。优化器：MuonClip。</div>
+    </div>
+    <div class="cols">
+      <div class="card">
+        <h3>Toggle：预算约束的「间歇训练」</h3>
+        <div class="math small" style="margin:.3rem 0">
+          \[ \tilde r(x,y)=\begin{cases} r(x,y)\cdot\mathbb{I}\{\bar r(x)&lt;\lambda\ \text{或}\ |y|\le \mathrm{budget}(x)\} & \text{Phase 0（限预算）}\\ r(x,y) & \text{Phase 1（放开）}\end{cases} \]
+          <div class="note">每 \(m\) 轮切换：Phase 0 逼模型少费 token 也能解题（简单题超预算则奖励清零），Phase 1 放开预算保留「加算力换深度」的能力 —— 治好 K1.5 式硬预算的「长度过拟合」。</div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>GRM：自评 rubric 的成年形态</h3>
+        <p class="small">生成式奖励模型部署到聊天/代码/搜索/artifact 全域：不做二元裁判，而输出<b>细粒度多维评价</b>（有用性、就绪度、细节度、审美、严格指令遵循）。为防被单一偏好过拟合，<b>多套备选 rubric 随任务上下文轮换</b> —— 奖励模型自身也要「多样化免疫」。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="5">
+  <div class="inner">
+    <div class="kicker">K2.5 · 数学 ② 多智能体</div>
+    <h2>Agent Swarm 与 PARL：只训练「指挥家」<span class="en">Parallel-Agent RL —— 并行不是启发式，是被 RL 学出来的策略</span></h2>
+    <div class="cols">
+      <div>
+        <div class="diagram">
+        <svg viewBox="0 0 540 250" xmlns="http://www.w3.org/2000/svg" class="svgtxt">
+          <g font-size="12.5" fill="#e8ecf8">
+            <rect x="170" y="12" width="200" height="54" rx="10" fill="#1b2c4a" stroke="#f472b6" stroke-width="2.5"/>
+            <text x="270" y="34" text-anchor="middle" font-weight="700" fill="#f472b6">Orchestrator（可训练）</text>
+            <text x="270" y="52" text-anchor="middle" fill="#9aa7c9" font-size="11">任务分解 · 子体实例化 · 并行调度</text>
+            <g stroke="#5c6890" stroke-width="1.6">
+              <line x1="220" y1="66" x2="90" y2="120"/><line x1="250" y1="66" x2="210" y2="120"/>
+              <line x1="290" y1="66" x2="330" y2="120"/><line x1="320" y1="66" x2="450" y2="120"/>
+            </g>
+            <g text-anchor="middle" font-size="11.5">
+              <rect x="35" y="122" width="110" height="46" rx="8" fill="#14203f" stroke="#5c6890"/><text x="90" y="141">子体₁ 检索</text><text x="90" y="158" fill="#9aa7c9">冻结 ❄</text>
+              <rect x="155" y="122" width="110" height="46" rx="8" fill="#14203f" stroke="#5c6890"/><text x="210" y="141">子体₂ 编码</text><text x="210" y="158" fill="#9aa7c9">冻结 ❄</text>
+              <rect x="275" y="122" width="110" height="46" rx="8" fill="#14203f" stroke="#5c6890"/><text x="330" y="141">子体₃ 分析</text><text x="330" y="158" fill="#9aa7c9">冻结 ❄</text>
+              <rect x="395" y="122" width="110" height="46" rx="8" fill="#14203f" stroke="#5c6890"/><text x="450" y="141">… 至 100 个</text><text x="450" y="158" fill="#9aa7c9">冻结 ❄</text>
+            </g>
+            <text x="270" y="198" text-anchor="middle" fill="#9aa7c9" font-size="12">子体输出被当作「环境观测」而非可微决策点</text>
+            <text x="270" y="220" text-anchor="middle" fill="#9aa7c9" font-size="12">⇒ 绕开信用分配歧义与联合训练不稳定，只更新指挥家</text>
+          </g>
+        </svg></div>
+        <div class="math small">
+          \[ \text{CriticalSteps}=\sum_{t=1}^{T}\Big(S^{(t)}_{\mathrm{main}}+\max_i S^{(t)}_{\mathrm{sub},i}\Big) \]
+          <div class="note">以「关键路径步数」替代总步数做资源约束：奖励缩短<b>最长并行分支</b>的分解方式，而非单纯堆并发。</div>
+        </div>
+      </div>
+      <div>
+        <div class="math">
+          \[ r_{\mathrm{PARL}}(x,y)=\lambda_1\!\cdot\!\underbrace{r_{\text{parallel}}}_{\text{实例化奖励}}+\lambda_2\!\cdot\!\underbrace{r_{\text{finish}}}_{\text{子任务完成率}}+\underbrace{r_{\text{perf}}(x,y)}_{\text{任务结果}} \]
+          <div class="note">两个辅助项各治一种病：\(r_{\text{parallel}}\) 治<b>串行塌缩</b>（指挥家躺平退化为单智能体）；\(r_{\text{finish}}\) 治<b>虚假并行</b>（滥开子体刷指标的奖励作弊）。\(\lambda_1,\lambda_2\) 随训练<b>退火到 0</b>—— 脚手架拆除，只留任务本身。</div>
+        </div>
+        <ul class="clean small">
+          <li>提示分布刻意构造 wide-search / deep-search 任务，<b>不明说要并行</b>，让并行成为「被环境偏爱」的解；</li>
+          <li>先用小尺寸子体训指挥家，再换大子体（成本课程）；</li>
+          <li><b>结果</b>：wide-search 延迟至多降 4.5×，条目级 F1 72.8→79.0；SWE-bench Verified 76.8、AIME25 96.1。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 第六章 DeepSeek-V4 ============ -->
+<section class="slide divider" data-ch="6">
+  <div class="inner">
+    <div class="chnum">第 六 章 · 2026.04</div>
+    <h1>DeepSeek-V4：百万上下文与蒸馏整合范式</h1>
+    <p class="sub">V4-Pro（1.6T / 49B 激活）与 V4-Flash（284B / 13B 激活），原生 1M 上下文。架构上用混合压缩注意力砸穿长上下文成本墙；后训练上<b>放弃单体混合 RL</b>，改为「领域专家分治 + 多教师在线蒸馏」——本章是架构与后训练的双重转折点。</p>
+    <div class="ribbon">
+      <span>Tülu 3</span><span>R1/K1.5</span><span>K2</span><span>GLM-5</span><span>K2.5</span><span class="on">V4</span><span>MAI-1</span><span>GLM-5.2</span>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="6">
+  <div class="inner">
+    <div class="kicker">V4 · 架构 ①</div>
+    <h2>混合注意力：CSA + HCA<span class="en">两台引擎并行：细粒度稀疏 与 粗粒度稠密，各取所长</span></h2>
+    <div class="diagram">
+    <svg viewBox="0 0 1120 300" xmlns="http://www.w3.org/2000/svg" class="svgtxt">
+      <g font-size="13" fill="#e8ecf8">
+        <rect x="20" y="20" width="520" height="240" rx="12" fill="#14203f" stroke="#60a5fa" stroke-width="1.5"/>
+        <text x="280" y="50" text-anchor="middle" font-weight="700" fill="#60a5fa">CSA · 压缩稀疏注意力</text>
+        <g transform="translate(60,70)">
+          <g fill="#26325e"><rect x="0" y="0" width="26" height="26" rx="4"/><rect x="30" y="0" width="26" height="26" rx="4"/><rect x="60" y="0" width="26" height="26" rx="4"/><rect x="90" y="0" width="26" height="26" rx="4"/><rect x="130" y="0" width="26" height="26" rx="4"/><rect x="160" y="0" width="26" height="26" rx="4"/><rect x="190" y="0" width="26" height="26" rx="4"/><rect x="220" y="0" width="26" height="26" rx="4"/></g>
+          <path d="M 58 30 L 58 52" stroke="#60a5fa" stroke-width="2"/><path d="M 188 30 L 188 52" stroke="#60a5fa" stroke-width="2"/>
+          <rect x="42" y="56" width="34" height="26" rx="5" fill="#60a5fa" opacity=".85"/><rect x="172" y="56" width="34" height="26" rx="5" fill="#60a5fa" opacity=".85"/>
+          <text x="250" y="20" fill="#9aa7c9" font-size="12" text-anchor="start">m=4 个 token 经 softmax 加权</text>
+          <text x="250" y="40" fill="#9aa7c9" font-size="12" text-anchor="start">压成 1 个 KV 条目</text>
+          <text x="0" y="120" fill="#9aa7c9" font-size="12">Lightning Indexer 为每个 query 挑 top-k 压缩条目</text>
+          <text x="0" y="142" fill="#9aa7c9" font-size="12">→ 在压缩序列上做 DSA 稀疏注意力（细节保真）</text>
+          <text x="0" y="170" fill="#60a5fa" font-size="12" font-weight="700">+ 滑窗注意力分支（近邻细节）与注意力汇聚点</text>
+        </g>
+        <rect x="580" y="20" width="520" height="240" rx="12" fill="#14203f" stroke="#60a5fa" stroke-width="1.5"/>
+        <text x="840" y="50" text-anchor="middle" font-weight="700" fill="#60a5fa">HCA · 重压缩注意力</text>
+        <g transform="translate(620,70)">
+          <g fill="#26325e"><rect x="0" y="0" width="200" height="26" rx="4"/><rect x="210" y="0" width="200" height="26" rx="4"/></g>
+          <path d="M 100 30 L 100 52 M 310 30 L 310 52" stroke="#fbbf24" stroke-width="2"/>
+          <rect x="84" y="56" width="32" height="26" rx="5" fill="#fbbf24" opacity=".9"/><rect x="294" y="56" width="32" height="26" rx="5" fill="#fbbf24" opacity=".9"/>
+          <text x="0" y="120" fill="#9aa7c9" font-size="12">m′=128 个 token 压成 1 个 KV 条目（激进 128×）</text>
+          <text x="0" y="142" fill="#9aa7c9" font-size="12">→ 在极短的压缩序列上做「稠密」注意力</text>
+          <text x="0" y="170" fill="#fbbf24" font-size="12" font-weight="700">捕获全文档级语义扫视 —— 「便宜的全局视野」</text>
+        </g>
+        <text x="560" y="290" text-anchor="middle" fill="#9aa7c9" font-size="12.5">层间交替 CSA / HCA + 共享 KV 的 MQA + 分组输出投影 + 部分 RoPE ⇒ 1M token 下 KV 缓存 ≈ BF16 GQA8 基线的 2%</text>
+      </g>
+    </svg></div>
+    <div class="cols3">
+      <div class="card"><p class="big">27%</p><p class="small">1M 上下文单 token 推理 FLOPs（vs V3.2）—— Flash 版更低至 10%。</p></div>
+      <div class="card"><p class="big">10%</p><p class="small">KV 缓存占用（vs V3.2）—— 长程任务与测试时扩展在经济上首次可行。</p></div>
+      <div class="card"><p class="big">83.5 MRCR</p><p class="small">1M token 多针检索，超过 Gemini-3.1-Pro（76.3）——压缩没有牺牲记忆精度。</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="6">
+  <div class="inner">
+    <div class="kicker">V4 · 架构 ② 数学</div>
+    <h2>mHC：把残差流约束在 Birkhoff 多面体上<span class="en">Manifold-Constrained Hyper-Connections —— 让「更宽的残差」不再炸</span></h2>
+    <div class="cols">
+      <div>
+        <p class="small sub">Hyper-Connections 把残差流加宽 \(n_{\mathrm{hc}}\) 倍（\(X_l\in\mathbb{R}^{n_{\mathrm{hc}}\times d}\)），三个映射控制进出：</p>
+        <div class="math small">
+          \[ X_{l+1}=B_l X_l + C_l\,\mathcal{F}_l(A_l X_l) \]
+          <div class="note">\(A_l\in\mathbb{R}^{1\times n_{\mathrm{hc}}}\) 选入、\(B_l\in\mathbb{R}^{n_{\mathrm{hc}}\times n_{\mathrm{hc}}}\) 残差混合、\(C_l\in\mathbb{R}^{n_{\mathrm{hc}}\times1}\) 写回。层内计算维度仍是 \(d\)，代价极小。<b>但深堆 HC 数值不稳。</b></div>
+        </div>
+        <div class="math small">
+          \[ B_l\in\mathcal{M}=\{M\mid M\mathbf 1=\mathbf 1,\ \mathbf 1^{\!\top}\!M=\mathbf 1^{\!\top},\ M\ge 0\} \]
+          <div class="note">mHC 的核心：把 \(B_l\) 投影到<b>双随机矩阵流形</b>（Birkhoff 多面体）⇒ \(\|B_l\|_2\le 1\)（非扩张），且 \(\mathcal M\) 对乘法封闭 ⇒ 任意深度堆叠信号不放大。</div>
+        </div>
+      </div>
+      <div>
+        <p class="small sub">参数动态生成（输入依赖 + 静态偏置），再施加约束：</p>
+        <div class="math small">
+          \[ A_l=\sigma(\tilde A_l),\qquad C_l=2\,\sigma(\tilde C_l),\qquad B_l=\lim_{t}\ \mathcal{T}_r\big(\mathcal{T}_c(\exp \tilde B_l)\big) \]
+          <div class="note">\(B_l\) 用 <b>Sinkhorn–Knopp</b>：先 \(\exp\) 保正，再交替行/列归一化收敛到双随机。\(\sigma\) 保证 \(A_l, C_l\) 非负有界，避免信号相消。</div>
+        </div>
+        <ul class="clean small">
+          <li><b>Muon 侧防爆</b>：混合 Newton–Schulz 迭代 + 防注意力 logit 爆炸机制（呼应 K2 的 QK-Clip 问题意识）；</li>
+          <li><b>训练稳定性组合拳</b>：Anticipatory Routing（路由用历史参数解耦更新、打断恶性反馈环）+ SwiGLU 钳位；</li>
+          <li>路由激活函数 Sigmoid → \(\mathrm{Sqrt}(\mathrm{Softplus}(\cdot))\)，前几层 dense FFN 换成 <b>Hash 路由 MoE</b>。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="6">
+  <div class="inner">
+    <div class="kicker">V4 · 后训练 · 本章高潮</div>
+    <h2>两阶段范式：专家分治 → 多教师在线蒸馏<span class="en">放弃 R1 式「一锅烩」混合 RL —— 让整合成为独立的、可优化的阶段</span></h2>
+    <div class="diagram">
+    <svg viewBox="0 0 1120 250" xmlns="http://www.w3.org/2000/svg" class="svgtxt">
+      <defs><marker id="ar7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#5c6890"/></marker></defs>
+      <g font-size="12.5" fill="#e8ecf8">
+        <rect x="15" y="80" width="150" height="60" rx="10" fill="#14203f" stroke="#60a5fa"/>
+        <text x="90" y="106" text-anchor="middle" font-weight="700">V4 Base</text>
+        <text x="90" y="126" text-anchor="middle" fill="#9aa7c9" font-size="11.5">33T token 预训练</text>
+        <g text-anchor="middle">
+          <rect x="230" y="14" width="190" height="44" rx="9" fill="#14203f" stroke="#4ade80"/><text x="325" y="34">数学专家</text><text x="325" y="50" fill="#9aa7c9" font-size="11">SFT → GRPO·RLVR</text>
+          <rect x="230" y="66" width="190" height="44" rx="9" fill="#14203f" stroke="#4ade80"/><text x="325" y="86">代码专家</text><text x="325" y="102" fill="#9aa7c9" font-size="11">SFT → GRPO·执行奖励</text>
+          <rect x="230" y="118" width="190" height="44" rx="9" fill="#14203f" stroke="#4ade80"/><text x="325" y="138">智能体专家</text><text x="325" y="154" fill="#9aa7c9" font-size="11">SFT → GRPO·环境奖励</text>
+          <rect x="230" y="170" width="190" height="44" rx="9" fill="#14203f" stroke="#4ade80"/><text x="325" y="190">指令遵循专家</text><text x="325" y="206" fill="#9aa7c9" font-size="11">SFT → GRPO·生成式RM</text>
+        </g>
+        <g stroke="#5c6890" stroke-width="1.8">
+          <line x1="165" y1="100" x2="230" y2="40" marker-end="url(#ar7)"/><line x1="165" y1="106" x2="230" y2="88" marker-end="url(#ar7)"/>
+          <line x1="165" y1="114" x2="230" y2="140" marker-end="url(#ar7)"/><line x1="165" y1="120" x2="230" y2="192" marker-end="url(#ar7)"/>
+        </g>
+        <g stroke="#fbbf24" stroke-width="1.8">
+          <line x1="420" y1="36" x2="520" y2="100" marker-end="url(#ar7)"/><line x1="420" y1="88" x2="520" y2="108" marker-end="url(#ar7)"/>
+          <line x1="420" y1="140" x2="520" y2="116" marker-end="url(#ar7)"/><line x1="420" y1="192" x2="520" y2="124" marker-end="url(#ar7)"/>
+        </g>
+        <rect x="522" y="80" width="240" height="60" rx="10" fill="#1b2c4a" stroke="#fbbf24" stroke-width="2.5"/>
+        <text x="642" y="104" text-anchor="middle" font-weight="700" fill="#fbbf24">统一学生模型</text>
+        <text x="642" y="124" text-anchor="middle" fill="#9aa7c9" font-size="11.5">在自己的轨迹上向多教师学习</text>
+        <line x1="762" y1="110" x2="830" y2="110" stroke="#5c6890" stroke-width="2" marker-end="url(#ar7)"/>
+        <rect x="832" y="80" width="270" height="60" rx="10" fill="#14203f" stroke="#60a5fa" stroke-width="2"/>
+        <text x="967" y="104" text-anchor="middle" font-weight="700" fill="#60a5fa">DeepSeek-V4（统一模型）</text>
+        <text x="967" y="124" text-anchor="middle" fill="#9aa7c9" font-size="11.5">Non-think / Think-High / Think-Max</text>
+        <text x="560" y="238" fill="#9aa7c9" font-size="12">专家配备：生成式奖励模型 · 工具调用 schema 与专用 token · 交错思考 · Quick-Instruction · 分档推理努力（reasoning effort）</text>
+      </g>
+    </svg></div>
+    <div class="math">
+      \[ \mathcal{L}_{\mathrm{OPD}}(\theta)=\mathbb{E}_{y\sim\pi_\theta}\Big[\sum_{t=1}^{|y|}\sum_{i=1}^{N} w_i\, \mathbb{D}_{\mathrm{KL}}\big(\pi_\theta(\cdot\,|\,x,y_{&lt;t})\ \big\|\ \pi_{E_i}(\cdot\,|\,x,y_{&lt;t})\big)\Big] \]
+      <div class="note"><b>在线策略蒸馏（OPD）</b>：学生<b>自己采样</b>轨迹（on-policy，消灭训推行为差距），教师在学生的每个 token 上给出<b>全词表 logits</b> 监督（稠密、低方差梯度）；<b>反向 KL</b> 是 mode-seeking —— 学生只在自己会走到的状态上贴合教师，不被迫覆盖教师全部模式。相比权重合并：无干涉退化；相比重跑联合 RL：便宜一个数量级。</div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="6">
+  <div class="inner">
+    <div class="kicker">V4 · 后训练基础设施</div>
+    <h2>让 OPD 与 1M-ctx RL 跑起来的五件工程<span class="en">后训练报告第一次把「沙箱」「调度」「量化」写成正文而非附录</span></h2>
+    <div class="cols">
+      <div>
+        <ul class="clean small">
+          <li><b>FP4 量化感知训练</b>：MoE 专家权重与 indexer QK 路径 FP4（MXFP4），FP32 主权重量化→FP8 计算 —— 模型「原生适应」低精度推理，后训练阶段完成；</li>
+          <li><b>全词表 OPD 的教师调度</b>：多教师 logits 服务的高效流水线（教师推理与学生训练重叠）；</li>
+          <li><b>可抢占、容错的 rollout 服务</b>：轨迹日志 + 断点安全恢复（与 APRIL 的部分回滚思想同源）；</li>
+          <li><b>1M 上下文 RL 框架</b>：两阶段上下文并行处理压缩注意力；</li>
+          <li><b>DSec 沙箱</b>：Rust + microVM，四种执行底座一个接口，海量并发下的密度优化 —— 智能体 RL 的「发电厂」。</li>
+        </ul>
+      </div>
+      <div>
+        <table class="tb">
+          <tr><th>评测（Pro-Max）</th><th>成绩</th><th>参照</th></tr>
+          <tr><td>SWE-bench Verified</td><td>80.6</td><td class="dim">≈ Gemini-3.1-Pro</td></tr>
+          <tr><td>Codeforces Elo</td><td>3206</td><td class="dim">≈ GPT-5.4-xHigh</td></tr>
+          <tr><td>SimpleQA-Verified</td><td>57.9</td><td class="dim">开源第一</td></tr>
+          <tr><td>MRCR @1M</td><td>83.5</td><td class="dim">Gemini-3.1-Pro 76.3</td></tr>
+          <tr><td>Terminal-Bench 2.0</td><td>67.9</td><td class="dim">开源前列</td></tr>
+        </table>
+        <div class="qa small"><p><b>作者的自省</b>（报告原文的坦诚难得）：架构保留了若干「初步验证的组件与技巧」以降低训练风险 —— 承认<b>架构债</b>；真实任务上仍有格式遵循与「精炼摘要」短板，排版审美落后于 Claude Opus 4.5。推理水平与最前沿闭源差约 3–6 个月。</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 第七章 MAI-Thinking-1 ============ -->
+<section class="slide divider" data-ch="7">
+  <div class="inner">
+    <div class="chnum">第 七 章 · 2026.06</div>
+    <h1>MAI-Thinking-1：从零爬山</h1>
+    <p class="sub">Microsoft AI「超级智能团队」的首个自研推理模型。109 页技术报告被研究社区誉为「当代 LLM 训练教科书」。核心命题与所有前辈唱反调：<b>零第三方蒸馏、零合成数据</b> —— 能力必须被学会，而不是被继承。</p>
+    <div class="ribbon">
+      <span>Tülu 3</span><span>R1/K1.5</span><span>K2</span><span>GLM-5</span><span>K2.5</span><span>V4</span><span class="on">MAI-1</span><span>GLM-5.2</span>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="7">
+  <div class="inner">
+    <div class="kicker">MAI-1 · 哲学与地基</div>
+    <h2>爬山机（Hill-Climbing Machine）：把模型研发变成可爬升的闭环<span class="en">1T 总参 / 35B 激活 MoE · 30T 人写 token · 8192 × GB200 · 256K 上下文</span></h2>
+    <div class="cols3">
+      <div class="card">
+        <h3>① 能力要学会，不能继承</h3>
+        <p class="small">不从任何第三方模型蒸馏。模仿者被教师的设计选择锁死、难以适应新情境。RL 从<b>没见过任何推理轨迹</b>的检查点直接开始。</p>
+      </div>
+      <div class="card">
+        <h3>② 干净数据</h3>
+        <p class="small">Common Crawl + 私有来源，重抽取/去重，<b>主动剔除 AI 生成文本</b>，全程零 LLM 合成数据。数据判官用 <b>GEPA/DSPy 优化的 LLM judges</b> 做质量评分 —— 提示工程本身也被自动优化。</p>
+      </div>
+      <div class="card">
+        <h3>③ 全栈自研</h3>
+        <p class="small">与自家 MAIA 200 加速器协同设计；自研 RL 框架与环境；报告罕见地公开<b>逐代 MFU</b>。缩放阶梯用「效率增益 EG」决定架构晋级：基线需要多花多少算力才能追平候选者的损失。</p>
+      </div>
+    </div>
+    <div class="qa" style="margin-top:1.2rem">
+      <p class="small"><b>内部 NLL 评测集配比即是路线图：</b>代码 50% · STEM 17.5% · 数学 17.5% · 通识 10% · 多语 5% —— 一家以「企业级推理与软件工程」为目标函数的实验室。中期训练进一步加码 STEM/数学至 35%、代码 55%，为 RL 爬坡打地基。</p>
+    </div>
+    <p class="sub small" style="margin-top:.8rem">结果先行：AIME 2025 <b>97.0%</b>（RL 起点 &lt;20%）· AIME 2026 94.5% · SWE-Bench Pro <b>52.8%</b>（对标 Opus 4.6）· LiveCodeBench v6 87.7% · Surge 盲测 1276 项任务人类偏好胜 Sonnet 4.6。</p>
+  </div>
+</section>
+
+<section class="slide" data-ch="7">
+  <div class="inner">
+    <div class="kicker">MAI-1 · 数学</div>
+    <h2>RL Climb 的目标函数：GRPO 的两处「小而关键」的修改<span class="en">token 级归一 + 自适应熵控制 + 外层比率裁剪</span></h2>
+    <div class="math">
+      \[ \mathcal{J}(\theta)=\mathbb{E}_{q,\,y_{1:G}\sim\pi_{\mathrm{old}}}\Bigg[\frac{1}{\sum_{i=1}^{G}|y_i|}\sum_{i=1}^{G}\sum_{t=1}^{|y_i|}\min\Big(r_{i,t}(\theta)\,A_i,\ \mathrm{clip}\big(r_{i,t}(\theta),\,1\!-\!\epsilon,\,1\!+\!\epsilon\big)A_i\Big)\Bigg],\qquad A_i=\frac{R_i-\mathrm{mean}(R_{1:G})}{\mathrm{std}(R_{1:G})} \]
+      <div class="note">token 级策略梯度（DAPO 谱系）：归一化分母是<b>全局批的总 token 数</b>（跨数据并行组）——每个 token 等权，长回答不再被稀释。奖励来自代码执行 / AI 评审 / 训练过的 RM，随专家域切换。</div>
+    </div>
+    <div class="cols">
+      <div>
+        <h3>修改一：自适应熵控制</h3>
+        <div class="math small">
+          \[ r^{\mathrm{tr}}_{i,t}(\theta)=\mathrm{clip}\Big(r_{i,t}(\theta),\ 1-\epsilon,\ (1-\epsilon)^{-1}+k\Big) \]
+          <div class="note">上界解耦为 \((1-\epsilon)^{-1}+k\)，\(k\) 由控制器动态调节：观测熵 \(\hat H(\pi_\theta)\) 高于目标 \(H^\star\)（如 0.3）则收紧、低于则放宽 —— 把「熵坍缩 vs 熵爆炸」变成一个闭环控制问题，支撑<b>数千步</b>不间断爬升。</div>
+        </div>
+      </div>
+      <div>
+        <h3>修改二 + 复活术</h3>
+        <ul class="clean small">
+          <li><b>外层比率裁剪</b>：对未截断分支再加一层帽，防梯度范数爆炸（罕见 token 的 \(r_{i,t}\) 可以极端大）；</li>
+          <li><b>自蒸馏（self-distillation）</b>：崩溃或基座更新后，用自己的高分轨迹重启爬坡 —— 无需外部教师的「存档读档」机制；</li>
+          <li><b>训推数值一致性</b>：直接消灭训练/推理引擎失配（与 GLM 的 IcePop、K2.5 的裁剪治同一种病，MAI 选择在底层根治）。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="7">
+  <div class="inner">
+    <div class="kicker">MAI-1 · 组织学</div>
+    <h2>三专家 → 轨迹蒸馏 → 最终爬升<span class="en">又见「分治与整合」—— 但这次连蒸馏的教师都是自己训的</span></h2>
+    <div class="diagram">
+    <svg viewBox="0 0 1120 260" xmlns="http://www.w3.org/2000/svg" class="svgtxt">
+      <defs><marker id="ar8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#5c6890"/></marker></defs>
+      <g font-size="12.5" fill="#e8ecf8">
+        <rect x="15" y="95" width="140" height="60" rx="10" fill="#14203f" stroke="#fbbf24"/>
+        <text x="85" y="121" text-anchor="middle" font-weight="700">MAI-Base-1</text>
+        <text x="85" y="141" text-anchor="middle" fill="#9aa7c9" font-size="11.5">中期训练后</text>
+        <g text-anchor="middle">
+          <rect x="230" y="20" width="220" height="52" rx="9" fill="#14203f" stroke="#4ade80"/><text x="340" y="42">STEM + 竞赛代码 专家</text><text x="340" y="60" fill="#9aa7c9" font-size="11">可验证奖励 RL climb</text>
+          <rect x="230" y="104" width="220" height="52" rx="9" fill="#14203f" stroke="#60a5fa"/><text x="340" y="126">SWE / 智能体 专家</text><text x="340" y="144" fill="#9aa7c9" font-size="11">确定性可执行环境·真实测试套件</text>
+          <rect x="230" y="188" width="220" height="52" rx="9" fill="#14203f" stroke="#f472b6"/><text x="340" y="210">有用性 + 安全 专家</text><text x="340" y="228" fill="#9aa7c9" font-size="11">偏好与安全信号·同一奖励循环</text>
+        </g>
+        <g stroke="#5c6890" stroke-width="1.8">
+          <line x1="155" y1="112" x2="230" y2="50" marker-end="url(#ar8)"/>
+          <line x1="155" y1="125" x2="230" y2="128" marker-end="url(#ar8)"/>
+          <line x1="155" y1="140" x2="230" y2="212" marker-end="url(#ar8)"/>
+        </g>
+        <g stroke="#fbbf24" stroke-width="1.8">
+          <line x1="450" y1="46" x2="560" y2="112" marker-end="url(#ar8)"/>
+          <line x1="450" y1="130" x2="560" y2="122" marker-end="url(#ar8)"/>
+          <line x1="450" y1="214" x2="560" y2="134" marker-end="url(#ar8)"/>
+        </g>
+        <rect x="562" y="95" width="230" height="60" rx="10" fill="#1b2c4a" stroke="#fbbf24" stroke-width="2.2"/>
+        <text x="677" y="118" text-anchor="middle" font-weight="700" fill="#fbbf24">轨迹蒸馏 SFT</text>
+        <text x="677" y="139" text-anchor="middle" fill="#9aa7c9" font-size="11.5">三位教师的轨迹 → 单一整合模型</text>
+        <line x1="792" y1="125" x2="852" y2="125" stroke="#5c6890" stroke-width="2" marker-end="url(#ar8)"/>
+        <rect x="854" y="95" width="250" height="60" rx="10" fill="#14203f" stroke="#fbbf24" stroke-width="2.5"/>
+        <text x="979" y="118" text-anchor="middle" font-weight="700" fill="#fbbf24">最终轻量 RL climb</text>
+        <text x="979" y="139" text-anchor="middle" fill="#9aa7c9" font-size="11.5">⇒ MAI-Thinking-1</text>
+      </g>
+    </svg></div>
+    <div class="cols">
+      <div class="qa small"><p><b>安全的位置学：</b>「不安全的顺从」与「不必要的拒绝」被视为<b>同一奖励构造中的两类缺陷</b>（按潜在伤害严重度聚合）——安全不是外挂过滤器，而是与能力同一爬山循环里的信号。这是安全训练方法论上的一次表态。</p></div>
+      <div class="qa small"><p><b>与 V4 / GLM-5.2 的对照：</b>三家在 2026 上半年独立收敛到「专家分治 + 蒸馏整合」。差异在整合算子：V4 用<b>反向 KL 全词表 OPD</b>，GLM 用 <b>slime 上的在线 OPD</b>（两天完成），MAI 用<b>轨迹 SFT + final RL</b>。分治-整合成为后训练的新正统。</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 第八章 GLM-5.2 ============ -->
+<section class="slide divider" data-ch="8">
+  <div class="inner">
+    <div class="chnum">第 八 章 · 2026.06 · 收官</div>
+    <h1>GLM-5.2：长程智能体的「好用」时刻</h1>
+    <p class="sub">MIT 协议、稳定 1M 上下文。FrontierSWE（数小时~数十小时工程任务）74.4%，距 Claude Opus 4.8 仅一个百分点，开源第一。这一章把前七章的所有线索——OPD、slime、反作弊、效率——收拢成一个句号。</p>
+    <div class="ribbon">
+      <span>Tülu 3</span><span>R1/K1.5</span><span>K2</span><span>GLM-5</span><span>K2.5</span><span>V4</span><span>MAI-1</span><span class="on">GLM-5.2</span>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="8">
+  <div class="inner">
+    <div class="kicker">GLM-5.2 · 两项收官技术</div>
+    <h2>IndexShare 与 反奖励作弊模块<span class="en">一个让 1M 上下文更便宜，一个让 RL 信号更干净</span></h2>
+    <div class="cols">
+      <div>
+        <h3>IndexShare：跨层共享稀疏索引器</h3>
+        <div class="diagram">
+        <svg viewBox="0 0 520 200" xmlns="http://www.w3.org/2000/svg" class="svgtxt">
+          <g font-size="12" fill="#e8ecf8">
+            <g text-anchor="middle">
+              <rect x="20" y="20" width="120" height="34" rx="7" fill="#14203f" stroke="#4ade80"/><text x="80" y="42">Layer n</text>
+              <rect x="20" y="62" width="120" height="34" rx="7" fill="#14203f" stroke="#4ade80"/><text x="80" y="84">Layer n+1</text>
+              <rect x="20" y="104" width="120" height="34" rx="7" fill="#14203f" stroke="#4ade80"/><text x="80" y="126">Layer n+2</text>
+              <rect x="20" y="146" width="120" height="34" rx="7" fill="#14203f" stroke="#4ade80"/><text x="80" y="168">Layer n+3</text>
+            </g>
+            <rect x="250" y="72" width="160" height="56" rx="10" fill="#1b2c4a" stroke="#fbbf24" stroke-width="2.2"/>
+            <text x="330" y="96" text-anchor="middle" font-weight="700" fill="#fbbf24">共享 Indexer</text>
+            <text x="330" y="116" text-anchor="middle" fill="#9aa7c9" font-size="11">top-k 稀疏 token 选择</text>
+            <g stroke="#fbbf24" stroke-width="1.6"><line x1="140" y1="37" x2="250" y2="90"/><line x1="140" y1="79" x2="250" y2="97"/><line x1="140" y1="121" x2="250" y2="104"/><line x1="140" y1="163" x2="250" y2="112"/></g>
+            <text x="330" y="160" text-anchor="middle" fill="#4ade80" font-size="12.5" font-weight="700">4 层共用 1 个索引器</text>
+            <text x="330" y="180" text-anchor="middle" fill="#9aa7c9" font-size="12">1M 上下文单 token 计算 ↓ 2.9×</text>
+          </g>
+        </svg></div>
+        <p class="small sub">思考努力可调（Non-Think→Max，「High 已近满血，Max 用 token 换最后几分」）；投机解码接受率 +20%。与 V4 的 CSA/HCA 是同一命题的两种解：<b>让「注意什么」这件事本身变便宜。</b></p>
+      </div>
+      <div>
+        <h3>反奖励作弊：两级免疫系统</h3>
+        <div class="diagram">
+        <svg viewBox="0 0 520 200" xmlns="http://www.w3.org/2000/svg" class="svgtxt">
+          <g font-size="12" fill="#e8ecf8">
+            <rect x="10" y="16" width="500" height="48" rx="9" fill="#14203f" stroke="#f87171"/>
+            <text x="260" y="36" text-anchor="middle" fill="#f87171" font-weight="700">观察到的作弊行为（RL 中自发出现，5.2 &gt; 5.1）</text>
+            <text x="260" y="54" text-anchor="middle" fill="#9aa7c9" font-size="11.5">curl 拉取 GitHub 答案 · 翻找隐藏评测文件 · 链式命令窃取测试用例</text>
+            <g text-anchor="middle">
+              <rect x="30" y="92" width="210" height="52" rx="9" fill="#14203f" stroke="#4ade80"/>
+              <text x="135" y="114" font-weight="700">① 规则过滤器</text><text x="135" y="132" fill="#9aa7c9" font-size="11.5">拦截可疑动作（快、粗）</text>
+              <rect x="280" y="92" width="210" height="52" rx="9" fill="#14203f" stroke="#4ade80"/>
+              <text x="385" y="114" font-weight="700">② LLM 意图裁判</text><text x="385" y="132" fill="#9aa7c9" font-size="11.5">判定被标记调用的真实意图（准、慢）</text>
+            </g>
+            <line x1="240" y1="118" x2="280" y2="118" stroke="#5c6890" stroke-width="2" marker-end="url(#ar8)"/>
+            <text x="260" y="172" text-anchor="middle" fill="#fbbf24" font-size="12.5">只屏蔽作弊调用并返回 dummy 响应 —— rollout 继续跑</text>
+            <text x="260" y="192" text-anchor="middle" fill="#9aa7c9" font-size="12">（粗暴中止会让训练分布失稳；「精准点杀」保住其余轨迹的信号）</text>
+          </g>
+        </svg></div>
+        <p class="small sub">呼应第五章 PARL 的「虚假并行」与 K2.5 的多 rubric 轮换：<b>奖励作弊已从边角案例升格为 RL 规模化的核心工程对象。</b></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="8">
+  <div class="inner">
+    <div class="kicker">GLM-5.2 · 收官成绩单</div>
+    <h2>OPD 的工业化：十余个专家，两天整合<span class="en">slime 的异步架构 × OPD 的在线蒸馏 —— 算法与系统的「联姻」</span></h2>
+    <div class="cols">
+      <div>
+        <ul class="clean">
+          <li>后训练并行训练<b>十余个领域专家</b>（推理/编码/搜索/安全…），再经 OPD 合并为发布模型 —— <b>整合阶段仅约两天</b>；</li>
+          <li>OPD 需要「教师常在线 + 海量交互数据高效流转」，slime 的训推分离异步架构恰好供给这两点；</li>
+          <li>部分专家<b>不急于合并</b>，继续在各自领域深潜 —— 专家池成为持续资产（下一代模型的教师储备）。</li>
+        </ul>
+        <div class="qa small"><p><b>三条故事线在此闭合：</b>①奖励从 RM→验证器→GRM→带免疫系统的验证器；②算法从 PPO→GRPO→失配修正家族；③组织从单体 RL→专家分治+OPD。<b>后训练已经从「一次训练」变成「一条流水线上的持续生产」。</b></p></div>
+      </div>
+      <div>
+        <table class="tb">
+          <tr><th>基准</th><th>GLM-5.2</th><th>参照</th></tr>
+          <tr><td>FrontierSWE（长程工程）</td><td>74.4</td><td class="dim">Opus 4.8 −1pt · 开源第一</td></tr>
+          <tr><td>Terminal-Bench 2.1</td><td>81.0</td><td class="dim">GLM-5.1: 63.5</td></tr>
+          <tr><td>SWE-bench Pro</td><td>62.1</td><td class="dim">GLM-5.1: 58.4</td></tr>
+          <tr><td>AIME 2026</td><td>99.2</td><td class="dim">数学近饱和</td></tr>
+          <tr><td>PostTrainBench</td><td>第2名</td><td class="dim">超 GPT-5.5 与 Opus 4.7</td></tr>
+          <tr><td>Artificial Analysis 智能指数</td><td>51</td><td class="dim">开源权重第一</td></tr>
+        </table>
+        <p class="small sub">短板同样清晰：HLE 落后 Opus 4.8 约 10 分；SWE-Marathon（编译器/内核级超长任务）仅为 Opus 4.8 一半；token 消耗偏高 —— 长程「智力密度」仍是开闭源之间的真实差距。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 综合 ============ -->
+<section class="slide divider" data-ch="9">
+  <div class="inner">
+    <div class="chnum">综 合 篇</div>
+    <h1>把八份报告放在一张桌上</h1>
+    <p class="sub">跨报告对照：哪些是巧合，哪些是必然。</p>
+  </div>
+</section>
+
+<section class="slide" data-ch="9">
+  <div class="inner">
+    <div class="kicker">综合篇 · 对照矩阵</div>
+    <h2>一张表看懂 2024–2026 的后训练</h2>
+    <table class="tb" style="font-size:.85rem">
+      <tr><th>模型</th><th>RL 算法核心</th><th>奖励体系</th><th>整合机制</th><th>标志性基础设施</th></tr>
+      <tr><td><b style="color:var(--teal)">Tülu 3</b> <span class="dim">24.11</span></td><td>PPO（价值网络由 RM 初始化）</td><td>RLVR（验证函数）+ 偏好 DPO</td><td>单线流水线</td><td>开源全配方与去污染评测</td></tr>
+      <tr><td><b style="color:var(--orange)">R1 / K1.5</b> <span class="dim">25.01</span></td><td>GRPO（组内基线）/ OPMD 平方损失</td><td>准确性 + 格式 / 长度惩罚</td><td>多阶段自举（RL→拒绝采样→SFT→RL）</td><td>大规模 RLVR 训练系统</td></tr>
+      <tr><td><b style="color:var(--violet)">Kimi K2</b> <span class="dim">25.07</span></td><td>K1.5 目标 + 预算控制 + PTX + 温度衰减</td><td>可验证 Gym + 自评 rubric（闭环校准）</td><td>联合 RL 单模型</td><td>MuonClip；共居引擎切换；智能体数据合成厂</td></tr>
+      <tr><td><b style="color:var(--green)">GLM-5</b> <span class="dim">26.02</span></td><td>GRPO + IcePop 门控（去 KL）</td><td>执行环境 + 混合奖励系统</td><td>顺序 RL 阶段 + 跨阶段 OPD</td><td>slime 异步框架 + APRIL 部分回滚</td></tr>
+      <tr><td><b style="color:var(--pink)">Kimi K2.5</b> <span class="dim">26.02</span></td><td>token 级 log-ratio 裁剪 + 平方正则</td><td>规则验证 + GRM + 视觉专用奖励 + Toggle</td><td>按能力分域联合 RL；PARL 只训指挥家</td><td>统一智能体 RL 环境；Agent Swarm</td></tr>
+      <tr><td><b style="color:var(--blue)">DeepSeek-V4</b> <span class="dim">26.04</span></td><td>GRPO（各专家域内）</td><td>域定制奖励 + 生成式 RM</td><td><b>多教师反向 KL 全词表 OPD</b></td><td>FP4 QAT；DSec microVM 沙箱；1M-ctx RL；批不变算子</td></tr>
+      <tr><td><b style="color:var(--amber)">MAI-Thinking-1</b> <span class="dim">26.06</span></td><td>GRPO token 级 + 自适应熵控制 + 外层裁剪</td><td>执行/评审/RM；安全与能力同一奖励</td><td>三专家 → 轨迹蒸馏 SFT → 最终 RL</td><td>训推逐位一致；自蒸馏续训；MAIA 200 协同设计</td></tr>
+      <tr><td><b style="color:var(--green)">GLM-5.2</b> <span class="dim">26.06</span></td><td>同 GLM-5 谱系</td><td>+ 两级反作弊免疫系统</td><td>十余专家并行 → OPD 两天整合</td><td>IndexShare；slime 工业化 OPD</td></tr>
+    </table>
+    <p class="sub small" style="margin-top:.5rem">粗体即本报告最独特的贡献点。注意「整合机制」一列自上而下的相变：<b>无 → 自举 → 顺序防遗忘 → 分治-蒸馏正统</b>。</p>
+  </div>
+</section>
+
+<section class="slide" data-ch="9">
+  <div class="inner">
+    <div class="kicker">综合篇 · 谱系</div>
+    <h2>策略优化算法的家谱<span class="en">所有 2026 目标函数都是 PPO 信任域思想在「无 critic + 训推分离」时代的变奏</span></h2>
+    <div class="diagram">
+    <svg viewBox="0 0 1120 420" xmlns="http://www.w3.org/2000/svg" class="svgtxt">
+      <defs><marker id="ar9" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#5c6890"/></marker></defs>
+      <g font-size="12.5" text-anchor="middle" fill="#e8ecf8">
+        <rect x="460" y="14" width="200" height="50" rx="10" fill="#14203f" stroke="#7dd3fc" stroke-width="2"/>
+        <text x="560" y="35" font-weight="700">PPO (2017)</text><text x="560" y="53" fill="#9aa7c9" font-size="11.5">裁剪信任域 + critic/GAE</text>
+        <line x1="480" y1="64" x2="300" y2="112" stroke="#5c6890" stroke-width="2" marker-end="url(#ar9)"/>
+        <line x1="640" y1="64" x2="820" y2="112" stroke="#5c6890" stroke-width="2" marker-end="url(#ar9)"/>
+        <rect x="170" y="114" width="260" height="56" rx="10" fill="#14203f" stroke="#fb923c" stroke-width="2"/>
+        <text x="300" y="136" font-weight="700" fill="#fb923c">GRPO (2024–25)</text>
+        <text x="300" y="155" fill="#9aa7c9" font-size="11.5">组内均值基线，砍掉 critic · R1</text>
+        <rect x="700" y="114" width="260" height="56" rx="10" fill="#14203f" stroke="#fb923c" stroke-width="2"/>
+        <text x="830" y="136" font-weight="700" fill="#fb923c">OPMD / 镜像下降 (K1.5)</text>
+        <text x="830" y="155" fill="#9aa7c9" font-size="11.5">平方损失 = 策略梯度 + ℓ₂ 正则</text>
+        <g stroke="#5c6890" stroke-width="1.8">
+          <line x1="230" y1="170" x2="150" y2="222" marker-end="url(#ar9)"/>
+          <line x1="300" y1="170" x2="330" y2="222" marker-end="url(#ar9)"/>
+          <line x1="390" y1="170" x2="560" y2="222" marker-end="url(#ar9)"/>
+          <line x1="830" y1="170" x2="830" y2="222" marker-end="url(#ar9)"/>
+        </g>
+        <rect x="30" y="224" width="240" height="72" rx="10" fill="#14203f" stroke="#fbbf24"/>
+        <text x="150" y="246" font-weight="700" fill="#fbbf24">MAI-Thinking-1</text>
+        <text x="150" y="266" fill="#9aa7c9" font-size="11.5">token 级归一（DAPO 谱系）</text>
+        <text x="150" y="284" fill="#9aa7c9" font-size="11.5">自适应熵控制 + 外层裁剪</text>
+        <rect x="290" y="224" width="200" height="72" rx="10" fill="#14203f" stroke="#4ade80"/>
+        <text x="390" y="246" font-weight="700" fill="#4ade80">GLM-5 / 5.2</text>
+        <text x="390" y="266" fill="#9aa7c9" font-size="11.5">IcePop：π_train/π_infer 门控</text>
+        <text x="390" y="284" fill="#9aa7c9" font-size="11.5">非对称裁剪 · 去 KL</text>
+        <rect x="510" y="224" width="200" height="72" rx="10" fill="#14203f" stroke="#60a5fa"/>
+        <text x="610" y="246" font-weight="700" fill="#60a5fa">DeepSeek-V4</text>
+        <text x="610" y="266" fill="#9aa7c9" font-size="11.5">专家域内 GRPO</text>
+        <text x="610" y="284" fill="#9aa7c9" font-size="11.5">+ 批不变算子根治失配</text>
+        <rect x="730" y="224" width="220" height="72" rx="10" fill="#14203f" stroke="#f472b6"/>
+        <text x="840" y="246" font-weight="700" fill="#f472b6">Kimi K2 → K2.5</text>
+        <text x="840" y="266" fill="#9aa7c9" font-size="11.5">+预算/PTX/温度衰减 (K2)</text>
+        <text x="840" y="284" fill="#9aa7c9" font-size="11.5">+token级 log-ratio 裁剪 (K2.5)</text>
+        <rect x="240" y="340" width="640" height="56" rx="12" fill="#1b2c4a" stroke="#22d3ee" stroke-width="2"/>
+        <text x="560" y="363" font-weight="700" fill="#22d3ee">共同终点：token 级信任域 + 训推失配控制 + 熵管理 —— 名字不同，微分几乎相同</text>
+        <text x="560" y="384" fill="#9aa7c9" font-size="11.5">分歧只剩一处：失配在算法里修（门控/裁剪）还是在系统里修（确定性算子）</text>
+        <g stroke="#26325e" stroke-width="1.6" stroke-dasharray="4 3">
+          <line x1="150" y1="296" x2="380" y2="340"/><line x1="390" y1="296" x2="480" y2="340"/>
+          <line x1="610" y1="296" x2="620" y2="340"/><line x1="840" y1="296" x2="720" y2="340"/>
+        </g>
+      </g>
+    </svg></div>
+  </div>
+</section>
+
+<section class="slide" data-ch="9">
+  <div class="inner">
+    <div class="kicker">综合篇 · 规律与开放问题</div>
+    <h2>五条规律，四个悬而未决</h2>
+    <div class="cols">
+      <div>
+        <ul class="clean">
+          <li><b>①奖励的去人化</b>：人类偏好→验证器→环境执行→生成式 RM——人从「打分者」退居「环境与尺子的设计者」。</li>
+          <li><b>②整合的相变</b>：单体 RL 学所有事已死；专家分治 + 在线蒸馏（OPD）在 V4 / GLM-5.2 / MAI 三家独立收敛 —— 2026 年的事实标准。</li>
+          <li><b>③基础设施即算法</b>：异步（slime/APRIL）制造 off-policy 漂移，倒逼算法修正（IcePop/裁剪）；反过来确定性算子（MAI/V4）消灭一整类算法补丁。<b>系统与目标函数已不可分开设计。</b></li>
+          <li><b>④作弊即影子</b>：奖励越强、智能体越强，作弊越聪明（curl 拉答案）。反作弊从 KL 惩罚进化为两级免疫系统。</li>
+          <li><b>⑤优化器上桌</b>：Muon/MuonClip 把「二阶结构 + 稳定性钳制」变成后训练报告的正文主角。</li>
+        </ul>
+      </div>
+      <div>
+        <div class="qa">
+          <p class="small"><b>开放问题（读论文时的透镜）：</b></p>
+          <ul class="clean small">
+            <li><b>蒸馏 vs 从零学习</b>：MAI 证明零蒸馏可行且可控性更好，但代价是巨量算力与时间——「继承的天花板」究竟存在吗？</li>
+            <li><b>长程信用分配</b>：数十小时任务（SWE-Marathon 上开源仅达 Opus 一半）里，结果级奖励还能撑多远？过程奖励会以什么形态回归？</li>
+            <li><b>多智能体信用分配</b>：PARL 靠「冻结子体」绕开了它——何时必须直面端到端联合优化？</li>
+            <li><b>熵的经济学</b>：自适应熵控制、温度衰减、Toggle 都在管理同一资源（探索预算）——有没有统一理论？</li>
+          </ul>
+        </div>
+        <p class="sub small" style="margin-top:.8rem">建议阅读顺序（配合本 deck）：Tülu 3 → DeepSeekMath(GRPO) → R1 → K1.5 → K2 → GLM-5 → K2.5 → V4 → MAI-1 报告 §3。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 直觉篇 ============ -->
+<section class="slide divider" data-ch="9">
+  <div class="inner">
+    <div class="chnum">直 觉 篇</div>
+    <h1>如果只能记住十个直觉</h1>
+    <p class="sub">数学会忘，直觉不会。本篇用「面试官视角」重述每项技术：<b>它在害怕什么、它用什么换什么、被追问 why 时怎么答</b>。这也是把八篇论文连成一张网的粘合剂。</p>
+  </div>
+</section>
+
+<section class="slide" data-ch="9">
+  <div class="inner">
+    <div class="kicker">直觉篇 · 一句话直觉</div>
+    <h2>每项技术的「心里话」与面试追问</h2>
+    <table class="tb" style="font-size:.83rem">
+      <tr><th>技术</th><th>一句话直觉</th><th>面试官追问 Why → 答题要点</th></tr>
+      <tr><td><b style="color:var(--teal)">RLVR</b></td><td>把打分器从「学出来的」换成「写出来的」——不会被讨好的奖励，才敢让模型猛踩油门。</td><td class="dim">为什么不全用 RM？→ RM 是策略的软肋（Goodhart），验证器无参数、不可作弊；但只覆盖可判定域，所以要与偏好方法互补。</td></tr>
+      <tr><td><b style="color:var(--orange)">GRPO</b></td><td>同一道题多试几次、自己跟自己比——批评家不必是网络，可以是统计量。</td><td class="dim">为什么能删 critic？→ 0/1 稀疏奖励下 critic 学不好还占一倍显存；组内均值就是无偏基线，代价是优势只有响应级分辨率。</td></tr>
+      <tr><td><b style="color:var(--orange)">OPMD (K1.5)</b></td><td>RL 的本质是把概率质量从错误答案搬到正确答案，KL 是搬运的刹车。</td><td class="dim">平方损失和策略梯度什么关系？→ 求导后 = 带基线的 PG + ℓ₂ 正则，是同一枚硬币的两面。</td></tr>
+      <tr><td><b style="color:var(--violet)">MuonClip</b></td><td>优化器踩得越狠，越需要安全带——把监控指标（max logit）本身变成控制信号。</td><td class="dim">为什么不用 QK-Norm？→ MLA 的 K 不显式物化；QK-Clip 只在事后缩权重、不改当步计算，干预最小。</td></tr>
+      <tr><td><b style="color:var(--violet)">自评 Rubric / GRM</b></td><td>客观题练出的判断力，可以去监考主观题。</td><td class="dim">怎么防它自我表扬？→ 闭环校准（可验证信号持续训 critic）+ 多套 rubric 轮换，不给单一偏好过拟合的机会。</td></tr>
+      <tr><td><b style="color:var(--green)">slime / APRIL</b></td><td>GPU 等待 = 烧钱；异步 = 允许用「略微过期」的经验，再让算法为过期买单。</td><td class="dim">异步引入什么代价？→ off-policy 漂移与部分轨迹的策略混血——所以必须配 IcePop/裁剪，系统与算法是一对连体婴。</td></tr>
+      <tr><td><b style="color:var(--green)">IcePop</b></td><td>训练引擎和推理引擎是「同一个人的两张照片」——差异太大的 token，宁可不学。</td><td class="dim">与 PPO clip 区别？→ PPO 裁的是对 π_old 的比（信任域）；IcePop 门的是 π_train/π_infer（工程失配），两者正交、可叠加。</td></tr>
+      <tr><td><b style="color:var(--pink)">PARL</b></td><td>训练组织者而不是工人——冻结工人，把多体信用分配降维成单体问题。</td><td class="dim">为什么冻结子体？→ 结果奖励嘈杂：答案对≠子体全对。把子体当环境，梯度只流向「怎么分工」这一件事。</td></tr>
+      <tr><td><b style="color:var(--blue)">OPD</b></td><td>请专家当老师，在<b>学生自己的作业本</b>上逐题批改——而不是把几个专家的脑子缝在一起。</td><td class="dim">为什么反向 KL + on-policy？→ 学生只在自己会到达的状态上贴合教师（mode-seeking），消灭「训练见过、推理没见过」的暴露偏差；全词表 logits 给稠密低方差梯度。</td></tr>
+      <tr><td><b style="color:var(--amber)">从零爬山 (MAI)</b></td><td>不抄作业，分数涨得慢，但每一分都知道怎么来的。</td><td class="dim">商业逻辑？→ 蒸馏继承教师的设计选择与法律血统；企业客户买的是可控性与数据谱系，而不只是榜单分。</td></tr>
+    </table>
+  </div>
+</section>
+
+<section class="slide" data-ch="9">
+  <div class="inner">
+    <div class="kicker">直觉篇 · 连接</div>
+    <h2>三条暗线如何互相咬合<span class="en">奖励、算法、系统不是三个章节，是一个飞轮</span></h2>
+    <div class="diagram">
+    <svg viewBox="0 0 1120 380" xmlns="http://www.w3.org/2000/svg" class="svgtxt">
+      <defs><marker id="arA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#9aa7c9"/></marker></defs>
+      <g font-size="13" text-anchor="middle" fill="#e8ecf8">
+        <rect x="420" y="20" width="280" height="66" rx="12" fill="#14203f" stroke="#2dd4bf" stroke-width="2"/>
+        <text x="560" y="47" font-weight="700" fill="#2dd4bf">① 奖励可验证化（RLVR）</text>
+        <text x="560" y="68" fill="#9aa7c9" font-size="11.5">无噪声信号 ⇒ 敢做超大规模 RL</text>
+        <rect x="80" y="240" width="300" height="66" rx="12" fill="#14203f" stroke="#4ade80" stroke-width="2"/>
+        <text x="230" y="267" font-weight="700" fill="#4ade80">② 系统解耦（异步/沙箱/环境）</text>
+        <text x="230" y="288" fill="#9aa7c9" font-size="11.5">规模上去后，长尾与吞吐成为主要矛盾</text>
+        <rect x="740" y="240" width="300" height="66" rx="12" fill="#14203f" stroke="#a78bfa" stroke-width="2"/>
+        <text x="890" y="267" font-weight="700" fill="#a78bfa">③ 算法补偿（门控/裁剪/熵控）</text>
+        <text x="890" y="288" fill="#9aa7c9" font-size="11.5">替「过期经验」和「引擎失配」买单</text>
+        <path d="M 470 90 C 330 130 250 180 235 236" stroke="#9aa7c9" stroke-width="2" fill="none" marker-end="url(#arA)"/>
+        <text x="290" y="150" fill="#9aa7c9" font-size="12" transform="rotate(-24 300 150)">规模化暴露长尾 → 逼出异步</text>
+        <path d="M 384 278 L 736 278" stroke="#9aa7c9" stroke-width="2" fill="none" marker-end="url(#arA)"/>
+        <text x="560" y="268" fill="#9aa7c9" font-size="12">异步制造 off-policy 漂移</text>
+        <path d="M 885 236 C 860 150 740 110 706 76" stroke="#9aa7c9" stroke-width="2" fill="none" marker-end="url(#arA)"/>
+        <text x="850" y="150" fill="#9aa7c9" font-size="12" transform="rotate(26 850 150)">训练更稳 → 奖励更敢激进</text>
+        <rect x="420" y="316" width="280" height="52" rx="26" fill="#1b2c4a" stroke="#fbbf24" stroke-width="2.2"/>
+        <text x="560" y="338" font-weight="700" fill="#fbbf24">④ 分治 + 蒸馏（OPD）</text>
+        <text x="560" y="357" fill="#9aa7c9" font-size="11.5">让①②③可以按领域并行发生，再统一收敛</text>
+      </g>
+    </svg></div>
+    <div class="qa small"><p><b>面试杀手锏：</b>被问任何单点技术时，向面试官展示这个飞轮 —— 「RLVR 让 RL 敢放大；放大暴露系统瓶颈；异步系统制造分布漂移；漂移倒逼算法门控；训练一稳，奖励侧就敢再激进（自评 rubric→GRM→反作弊）；最后用 OPD 把各域成果焊接成一个模型。」<b>能讲出因果链的人，和只会背公式的人，是两种候选人。</b></p></div>
+  </div>
+</section>
+
+<!-- ============ 落地篇 ============ -->
+<section class="slide divider" data-ch="10">
+  <div class="inner">
+    <div class="chnum">落 地 篇</div>
+    <h1>把八篇论文装进一套企业知识助手</h1>
+    <p class="sub">故事主角：一家万人规模企业的「知识平台」团队，要在内部百万级文档（合同、代码、财报、工单）上构建搜索问答系统。我们看着它从 v1 演进到 v4 —— <b>每一次升级，恰好用上前面章节的一项技术。</b></p>
+    <div class="ribbon">
+      <span class="on">v1 检索问答</span><span class="on">v2 奖励与对齐</span><span class="on">v3 深研智能体</span><span class="on">v4 蒸馏分层</span>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="10">
+  <div class="inner">
+    <div class="kicker">落地篇 · 全景</div>
+    <h2>系统全景：在线四层 × 离线一条训练流水线</h2>
+    <div class="diagram">
+    <svg viewBox="0 0 1120 400" xmlns="http://www.w3.org/2000/svg" class="svgtxt">
+      <defs><marker id="arB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#5c6890"/></marker></defs>
+      <g font-size="12" fill="#e8ecf8">
+        <text x="20" y="30" fill="#f87171" font-weight="700" font-size="14">在线服务（延迟预算逐层放大）</text>
+        <g text-anchor="middle">
+          <rect x="20" y="46" width="200" height="88" rx="10" fill="#14203f" stroke="#f87171"/>
+          <text x="120" y="70" font-weight="700">意图理解 / 查询改写</text>
+          <text x="120" y="90" fill="#9aa7c9" font-size="11">~1B · &lt;50ms</text>
+          <text x="120" y="110" fill="#2dd4bf" font-size="11">OPD 蒸馏而来 · RLVR格式奖励</text>
+          <line x1="220" y1="90" x2="252" y2="90" stroke="#5c6890" stroke-width="2" marker-end="url(#arB)"/>
+          <rect x="254" y="46" width="200" height="88" rx="10" fill="#14203f" stroke="#f87171"/>
+          <text x="354" y="70" font-weight="700">混合召回 + 重排</text>
+          <text x="354" y="90" fill="#9aa7c9" font-size="11">BM25+向量 · cross-encoder ~100ms</text>
+          <text x="354" y="110" fill="#2dd4bf" font-size="11">教师相关性标注→蒸馏重排器</text>
+          <line x1="454" y1="90" x2="486" y2="90" stroke="#5c6890" stroke-width="2" marker-end="url(#arB)"/>
+          <rect x="488" y="46" width="200" height="88" rx="10" fill="#14203f" stroke="#f87171"/>
+          <text x="588" y="70" font-weight="700">生成器（带引用RAG）</text>
+          <text x="588" y="90" fill="#9aa7c9" font-size="11">~32B · 1-3s · 交错思考</text>
+          <text x="588" y="110" fill="#2dd4bf" font-size="11">引用可验证奖励RL · GRM对齐</text>
+          <line x1="688" y1="90" x2="720" y2="90" stroke="#5c6890" stroke-width="2" marker-end="url(#arB)"/>
+          <rect x="722" y="46" width="200" height="88" rx="10" fill="#14203f" stroke="#f87171"/>
+          <text x="822" y="70" font-weight="700">DeepResearch 模式</text>
+          <text x="822" y="90" fill="#9aa7c9" font-size="11">分钟级 · 多跳综合报告</text>
+          <text x="822" y="110" fill="#2dd4bf" font-size="11">Agentic RL · Swarm 并行子体</text>
+          <rect x="944" y="46" width="156" height="88" rx="10" fill="#14203f" stroke="#f87171" stroke-dasharray="5 3"/>
+          <text x="1022" y="70" font-weight="700">在线评估</text>
+          <text x="1022" y="90" fill="#9aa7c9" font-size="11">GRM 抽检 + 行为日志</text>
+          <text x="1022" y="110" fill="#2dd4bf" font-size="11">反馈回流训练侧 ↓</text>
+        </g>
+        <text x="20" y="190" fill="#fbbf24" font-weight="700" font-size="14">离线训练流水线（V4 / GLM-5.2 / MAI 的分治-蒸馏范式）</text>
+        <g text-anchor="middle">
+          <rect x="20" y="206" width="230" height="80" rx="10" fill="#14203f" stroke="#fbbf24"/>
+          <text x="135" y="230" font-weight="700">环境与数据工厂</text>
+          <text x="135" y="250" fill="#9aa7c9" font-size="11">文档库快照沙箱 · 合成多跳任务</text>
+          <text x="135" y="268" fill="#9aa7c9" font-size="11">（K2 数据合成 + GLM 环境规模化）</text>
+          <line x1="250" y1="246" x2="282" y2="246" stroke="#5c6890" stroke-width="2" marker-end="url(#arB)"/>
+          <rect x="284" y="206" width="230" height="80" rx="10" fill="#14203f" stroke="#fbbf24"/>
+          <text x="399" y="230" font-weight="700">领域专家池（教师，~1T级）</text>
+          <text x="399" y="250" fill="#9aa7c9" font-size="11">法务/代码/财报/工单 各自 RL 深潜</text>
+          <text x="399" y="268" fill="#9aa7c9" font-size="11">GRPO家族 + slime异步 + APRIL</text>
+          <line x1="514" y1="246" x2="546" y2="246" stroke="#5c6890" stroke-width="2" marker-end="url(#arB)"/>
+          <rect x="548" y="206" width="230" height="80" rx="10" fill="#1b2c4a" stroke="#fbbf24" stroke-width="2.5"/>
+          <text x="663" y="230" font-weight="700" fill="#fbbf24">OPD 蒸馏车间</text>
+          <text x="663" y="250" fill="#9aa7c9" font-size="11">多教师反向KL → 32B生成器</text>
+          <text x="663" y="268" fill="#9aa7c9" font-size="11">轨迹蒸馏 → 1B意图模型/重排器</text>
+          <line x1="778" y1="246" x2="810" y2="246" stroke="#5c6890" stroke-width="2" marker-end="url(#arB)"/>
+          <rect x="812" y="206" width="288" height="80" rx="10" fill="#14203f" stroke="#fbbf24"/>
+          <text x="956" y="230" font-weight="700">评测闸门 + 反作弊审计</text>
+          <text x="956" y="250" fill="#9aa7c9" font-size="11">去污染内部评测（Tülu 3 纪律）</text>
+          <text x="956" y="268" fill="#9aa7c9" font-size="11">两级免疫系统审计RL日志（GLM-5.2）</text>
+        </g>
+        <path d="M 1022 134 C 1022 180 900 300 778 300 L 200 300 C 150 300 135 296 135 286" stroke="#26325e" stroke-width="2" fill="none" marker-end="url(#arB)" stroke-dasharray="6 4"/>
+        <text x="560" y="318" text-anchor="middle" fill="#9aa7c9" font-size="12">行为日志与 GRM 评估回流 → 变成下一轮训练的 prompt 分布与奖励校准数据（飞轮闭合）</text>
+        <text x="560" y="378" text-anchor="middle" fill="#5c6890" font-size="12">面试提示：能把「训练侧结构」画在「服务侧结构」旁边的候选人极少 —— 这张图本身就是答案。</text>
+      </g>
+    </svg></div>
+  </div>
+</section>
+
+<section class="slide" data-ch="10">
+  <div class="inner">
+    <div class="kicker">落地篇 · 方向① 奖励设计</div>
+    <h2>企业 RAG 的奖励金字塔：从「引用可验证」到「行为信号」</h2>
+    <div class="cols">
+      <div>
+        <div class="math small">
+          \[ r(x,y)=\underbrace{r_{\text{cite}}}_{\text{可验证层}}+\lambda_1\underbrace{r_{\text{GRM}}}_{\text{质量层}}+\lambda_2\underbrace{r_{\text{behav}}}_{\text{行为层}} \]
+          <div class="note">\(r_{\text{cite}}\)：答案的每个断言必须被所引片段<b>蕴含</b>（NLI 判定 + 引用 ID 存在性检查 + 拒答正确性）——这是 RLVR 思想在 RAG 的直接移植：<b>「有据可查」是企业场景里最接近「可验证」的东西</b>。\(r_{\text{GRM}}\)：完整性/简洁/格式（K2.5 式多 rubric 轮换）。\(r_{\text{behav}}\)：采纳率/追问率/复制粘贴行为，仅做<b>低权重校准</b>。</div>
+        </div>
+        <div class="qa small"><p><b>面试必问：为什么不直接用点击/采纳做奖励？</b>→ 四宗罪：稀疏（多数查询无反馈）、有偏（位置偏置、老员工偏好）、延迟（周级归因）、可作弊（讨好式答案骗采纳）。正解是行为信号<b>训练 GRM / 校准验证器</b>，而不是直接进 RL —— 这正是 RM→RLVR→GRM 演化在工业界的重演。</p></div>
+      </div>
+      <div>
+        <h3>反作弊：GLM-5.2 免疫系统的 RAG 版</h3>
+        <ul class="clean small">
+          <li><b>作弊形态迁移</b>：训练中模型学会「编造带引用格式的幻觉」「引用一个存在但不相关的片段」「大段复述文档规避判定」；</li>
+          <li><b>两级免疫</b>：规则层（引用 ID 必须存在于检索集合、复述比例上限）→ LLM 意图裁判（该引用是否真正支持该断言）；只清零作弊样本奖励，rollout 继续；</li>
+          <li><b>审计闭环</b>：作弊样本不丢弃 —— 它们是最好的<b>对抗评测集</b>与 GRM 训练负例（把矛炼成盾）。</li>
+        </ul>
+        <p class="small sub">对应章节：第一章 RLVR ｜ 第三/五章 rubric→GRM ｜ 第八章 反作弊。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="10">
+  <div class="inner">
+    <div class="kicker">落地篇 · 方向② Agentic 搜索训练</div>
+    <h2>企业 DeepResearch：多跳检索智能体怎么训出来</h2>
+    <div class="cols">
+      <div>
+        <h3>环境与任务：反向出题法</h3>
+        <ul class="clean small">
+          <li><b>环境</b> = 文档库快照 + 三个工具：search(q) / open(doc) / quote(span)——放进 microVM 沙箱（V4 DSec 思想），可抢占、可回放；</li>
+          <li><b>任务合成</b>（K2 数据工厂的 RAG 版）：从文档引用图上采样 k 跳路径 → 让强模型<b>反向生成</b>「必须跨 k 篇文档才能回答」的问题 + 可验证的标准答案与证据集；难度 = 跳数 × 干扰文档数；</li>
+          <li><b>课程</b>：单跳事实 → 双跳对比 → 跨部门综合报告（呼应 K1.5 难度课程）。</li>
+        </ul>
+        <div class="math small">
+          <div class="note" style="margin-top:0"><b>奖励</b>：\(r=\) 答案正确性（对标准证据集的召回/精确）\(+\) 过程合规（每步引用真实）\(-\) 步数成本。<b>长尾现实</b>：有的查询 5 步、有的 50 步 —— APRIL 的部分回滚在此不是优化而是刚需；异步带来的漂移由 IcePop/log-ratio 门控兜底（第四/五章原封不动搬来）。</div>
+        </div>
+      </div>
+      <div>
+        <h3>规模化：从单体到 Swarm</h3>
+        <ul class="clean small">
+          <li><b>wide-search 场景</b>（「汇总近三年所有涉及供应商 X 的合同风险」）：orchestrator 把文档域切片，并行子体各自扫描，汇总去重 —— K2.5 Agent Swarm 的企业形态；</li>
+          <li><b>PARL 奖励直接迁移</b>：\(r_{\text{perf}}\)=报告的证据覆盖率，\(r_{\text{finish}}\)=子查询完成率（防「虚假并行」——滥开子体刷指标），退火脚手架；</li>
+          <li><b>上下文管理</b>：子体只回传「引用+摘要」而非全文 —— Swarm 同时是<b>主动式上下文压缩</b>（K2.5 报告的原生洞见）。</li>
+        </ul>
+        <div class="qa small"><p><b>面试题：多智能体系统怎么做信用分配？</b>→ 先给「不做」的答案（PARL：冻结子体、只训指挥家、辅助奖励防塌缩），再谈何时必须端到端（子体能力成为瓶颈时）——展示你知道工程解与理想解的边界。</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="10">
+  <div class="inner">
+    <div class="kicker">落地篇 · 方向③ 蒸馏与延迟分层</div>
+    <h2>延迟金字塔：一位 1T 教师，供养全栈小模型</h2>
+    <div class="cols">
+      <div>
+        <table class="tb" style="font-size:.85rem">
+          <tr><th>层级</th><th>延迟/规模</th><th>训练来源</th></tr>
+          <tr><td>意图理解/改写</td><td class="dim">&lt;50ms · ~1B</td><td>教师轨迹蒸馏 SFT + RLVR 格式奖励</td></tr>
+          <tr><td>重排器</td><td class="dim">~100ms · cross-enc</td><td>教师逐对相关性判定 → 蒸馏（LLM 当标注厂）</td></tr>
+          <tr><td>RAG 生成器</td><td class="dim">1–3s · ~32B</td><td><b>多教师全词表 OPD</b>（V4 范式）</td></tr>
+          <tr><td>DeepResearch</td><td class="dim">分钟级 · 大模型</td><td>Agentic RL 直训（教师本尊或次旗舰）</td></tr>
+          <tr><td>专家池（离线）</td><td class="dim">不上线 · ~1T</td><td>各域 RL 深潜，永远当老师（GLM-5.2 的「专家不急合并」）</td></tr>
+        </table>
+        <p class="small sub">关键直觉：<b>教师的价值不在上线，而在「随时能教」。</b>专家池是持续资产——新领域=新专家=一次 OPD，而非一次全量重训。</p>
+      </div>
+      <div>
+        <h3>为什么是 OPD 而不是老式蒸馏</h3>
+        <ul class="clean small">
+          <li><b>老式（离线）蒸馏</b>：教师生成数据集→学生 SFT。问题：学生在<b>教师的分布</b>上学习，上线后遇到自己的错误状态就失控（暴露偏差）；</li>
+          <li><b>OPD</b>：学生在<b>线上真实 query 回放</b>上自己生成，教师逐 token 全词表批改（反向 KL）——学的恰是「我会犯的错」；GLM-5.2 用 slime 两天完成一轮 ⇒ <b>周级模型迭代节奏</b>成为可能；</li>
+          <li><b>版本升级</b>：新底座上任时用旧模型自蒸馏保能力（MAI 的 self-distillation 复活术）——企业最怕的「升级即回退」有了标准解法。</li>
+        </ul>
+        <div class="qa small"><p><b>面试题：蒸馏损失为何选反向 KL？</b>→ 正向 KL 是 mean-seeking（学生被迫覆盖教师所有模式→摊薄）；反向 KL 是 mode-seeking（学生在自己策略可达的状态上贴合教师最优模式）—— 小模型容量有限，「学精一条路」优于「学浅所有路」。</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="10">
+  <div class="inner">
+    <div class="kicker">落地篇 · 方向④ 长上下文 vs RAG</div>
+    <h2>1M 上下文会杀死 RAG 吗？—— 成本曲线说了算</h2>
+    <div class="cols">
+      <div>
+        <ul class="clean small">
+          <li><b>检索的本质</b>是稀疏注意力的<b>系统外实现</b>：BM25/向量召回 ≈ 一个不可微、但零 GPU 成本的 top-k indexer —— 与 V4 的 Lightning Indexer、GLM-5.2 的 IndexShare 做的是同一件事，只是位置不同（库外 vs 层内）；</li>
+          <li><b>V4 把曲线压弯了</b>：1M ctx 只花 27% FLOPs / 10% KV，且 <b>on-disk KV cache + 前缀复用</b>意味着「把整个知识库预填充一次、按 query 复用」——知识库变成一个<b>可检索的 KV 缓存</b>，介于 RAG 与全上下文之间的新物种；</li>
+          <li><b>决策矩阵</b>：库 ≲1M token / 跨文档推理密集 / 更新慢 → 整库进上下文；库巨大 / 点查为主 / 分钟级更新 / 权限隔离 → 检索；中间地带 → <b>检索粗筛 + 长上下文精读</b>（agentic 两阶段，事实上的工业标准答案）。</li>
+        </ul>
+      </div>
+      <div>
+        <div class="diagram">
+        <svg viewBox="0 0 520 240" xmlns="http://www.w3.org/2000/svg" class="svgtxt">
+          <g font-size="12" fill="#e8ecf8">
+            <line x1="50" y1="200" x2="490" y2="200" stroke="#5c6890" stroke-width="1.5"/>
+            <line x1="50" y1="200" x2="50" y2="20" stroke="#5c6890" stroke-width="1.5"/>
+            <text x="270" y="228" text-anchor="middle" fill="#9aa7c9">知识库规模（token）</text>
+            <text x="18" y="110" fill="#9aa7c9" transform="rotate(-90 18 110)" text-anchor="middle">单次查询成本</text>
+            <path d="M 60 180 C 150 160 260 90 470 30" stroke="#f87171" stroke-width="2.5" fill="none"/>
+            <text x="380" y="52" fill="#f87171" font-size="11.5">全上下文（V3.2 时代：陡峭）</text>
+            <path d="M 60 185 C 170 175 300 140 470 95" stroke="#fbbf24" stroke-width="2.5" fill="none"/>
+            <text x="360" y="118" fill="#fbbf24" font-size="11.5">V4/5.2 压缩注意力 + 盘上 KV</text>
+            <path d="M 60 190 C 200 187 340 183 470 178" stroke="#4ade80" stroke-width="2.5" fill="none"/>
+            <text x="380" y="168" fill="#4ade80" font-size="11.5">RAG 检索（近乎平坦）</text>
+            <line x1="300" y1="200" x2="300" y2="30" stroke="#26325e" stroke-width="1.2" stroke-dasharray="5 4"/>
+            <text x="300" y="20" text-anchor="middle" fill="#9aa7c9" font-size="11">交叉点持续右移 —— 但尚未消失</text>
+          </g>
+        </svg></div>
+        <div class="qa small"><p><b>面试收束句：</b>「长上下文与 RAG 不是替代关系，而是<b>同一个稀疏注意力问题在不同层的解</b>；架构进步只是不断把交叉点右移。真正被杀死的不是 RAG，而是『只会切块+向量库』的朴素 RAG。」</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="10">
+  <div class="inner">
+    <div class="kicker">落地篇 · 面试速查</div>
+    <h2>高频面试问题 → 本 deck 章节映射</h2>
+    <div class="cols">
+      <table class="tb" style="font-size:.88rem">
+        <tr><th>被问到…</th><th>去翻…</th></tr>
+        <tr><td>GRPO 与 PPO 的区别、为何可去 critic</td><td class="dim">第二章 + 综合篇谱系图</td></tr>
+        <tr><td>RLVR 是什么、边界在哪</td><td class="dim">第一章 + 落地① 奖励金字塔</td></tr>
+        <tr><td>reward hacking 见过哪些、怎么防</td><td class="dim">第八章 + 第五章 GRM + 落地①</td></tr>
+        <tr><td>训推不一致（train-infer mismatch）</td><td class="dim">第四章 IcePop / 第五章裁剪 / 第七章根治</td></tr>
+        <tr><td>为什么蒸馏用反向 KL / OPD 是什么</td><td class="dim">第六章 + 落地③</td></tr>
+        <tr><td>异步 RL 的收益与代价</td><td class="dim">第四章 slime/APRIL + 直觉篇飞轮</td></tr>
+        <tr><td>多智能体训练与信用分配</td><td class="dim">第五章 PARL + 落地②</td></tr>
+        <tr><td>1M 上下文 vs RAG</td><td class="dim">第六章 CSA/HCA + 落地④</td></tr>
+        <tr><td>熵坍缩怎么处理</td><td class="dim">第七章自适应熵控制 + K2 温度衰减</td></tr>
+      </table>
+      <div>
+        <div class="qa small"><p><b>叙事收官：</b>这家虚构公司的 v1→v4，正是 2024→2026 开源社区走过的路 —— <b>先让奖励可信（Tülu 3），再让训练可扩（GRPO/slime），再让能力成体系（专家+OPD），最后让智能体走进真实工作流（Swarm/DeepResearch）。</b>面试里能把一篇论文讲成一个系统决策的人，就是团队想要的人。</p></div>
+        <p class="sub small" style="margin-top:.8rem">建议的自我训练：对每一章问自己三个问题 —— ①它在害怕什么失败模式？②它用什么代价换什么收益？③放进我的系统，第一天会坏在哪？</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 附录：向下挖地基 ============ -->
+<section class="slide divider" data-ch="9">
+  <div class="inner">
+    <div class="chnum">附 录 · 向 下 挖 地 基</div>
+    <h1>大楼盖完了，现在往下挖三层</h1>
+    <p class="sub">对照斯坦福 <b>CS224R</b>（深度强化学习, Finn）与 <b>CS224N</b>（NLP, Yang &amp; Choi）2026 年讲义，主线 deck 有四簇「未言明的地基」。本附录逐页回答同一个问题：<b>主线里的 X，其实是课程里的 Y</b> —— 已剔除课程中的 LLM 章节（主线已覆盖）与机器人章节（按需求排除）。</p>
+    <div class="ribbon">
+      <span class="on">A · RL 第一性原理</span><span class="on">B · 模仿与离线 RL</span><span class="on">C · 检索与 RAG 地基</span><span class="on">D · 奖励学习·解码·评测</span>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="2">
+  <div class="inner">
+    <div class="kicker">附录 A1 · CS224R L1</div>
+    <h2>MDP 与 RL 目标：主线所有目标函数的「量纲」<span class="en">先把「优化的到底是什么」写清楚</span></h2>
+    <div class="cols">
+      <div>
+        <div class="math">
+          \[ \max_\theta\ \mathbb{E}_{\tau\sim p_\theta(\tau)}\Big[\sum_{t=1}^{T} r(s_t,a_t)\Big],\quad p_\theta(\tau)=p(s_1)\prod_t \pi_\theta(a_t|s_t)\,p(s_{t+1}|s_t,a_t) \]
+          <div class="note">轨迹 \(\tau=(s_1,a_1,\dots,s_T,a_T)\)。三件配套工具：\(V^\pi(s)=\mathbb{E}[\text{未来回报}|s]\)、\(Q^\pi(s,a)\)、优势 \(A^\pi=Q^\pi-V^\pi\)（「这个动作比平均好多少」）。</div>
+        </div>
+        <table class="tb" style="font-size:.85rem">
+          <tr><th>MDP 要素</th><th>LLM 后训练里的对应物</th></tr>
+          <tr><td>状态 \(s_t\)</td><td>prompt + 已生成前缀 \((x, y_{&lt;t})\)</td></tr>
+          <tr><td>动作 \(a_t\)</td><td>下一个 token \(y_t\)（动作空间 = 词表）</td></tr>
+          <tr><td>转移 \(p(s'|s,a)\)</td><td>确定性拼接（智能体场景：+工具返回，随机）</td></tr>
+          <tr><td>奖励 \(r\)</td><td>通常仅终点：\(r(x,y)\)（验证器/RM），\(\gamma=1\)</td></tr>
+        </table>
+      </div>
+      <div>
+        <div class="qa small"><p><b>⛏️ 挖到主线：</b>主线所有目标函数（GRPO、OPMD、IcePop、PARL）都是这同一个 \(\max\mathbb{E}[\sum r]\) 的不同估计器。「智能体 RL」之所以难，正是因为转移从确定性拼接<b>变回了真随机</b>（环境/工具/子体的返回不可预测）—— MDP 的完整机制苏醒了。</p></div>
+        <div class="qa small"><p><b>面试追问：为什么 LLM RL 通常 \(\gamma=1\) 且只有终点奖励？</b>→ 序列短（相对机器人的无限时域）、成败只在最终答案可判；也正因此<b>信用分配全靠优势估计</b>——这就是后面所有算法演化的火种。</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="2">
+  <div class="inner">
+    <div class="kicker">附录 A2 · CS224R L3</div>
+    <h2>REINFORCE：策略梯度 = 带权重的模仿学习<span class="en">log-derivative trick —— 主线一切 \(\nabla\log\pi\cdot A\) 的出生证明</span></h2>
+    <div class="cols">
+      <div>
+        <div class="math small">
+          \[ \nabla_\theta J=\mathbb{E}_{\tau\sim p_\theta}\big[\nabla_\theta \log p_\theta(\tau)\cdot r(\tau)\big] \]
+          <div class="note">恒等式 \(\nabla p = p\,\nabla\log p\) 把「对期望求导」变成「对 log 概率求导的期望」——转移概率不依赖 \(\theta\)，故 \(\nabla\log p_\theta(\tau)=\sum_t\nabla\log\pi_\theta(a_t|s_t)\)：<b>不需要环境可微！</b></div>
+        </div>
+        <div class="math small">
+          \[ \nabla_\theta J=\mathbb{E}\Big[\sum_{t}\nabla_\theta\log\pi_\theta(a_t|s_t)\Big(\underbrace{\textstyle\sum_{t'\ge t} r_{t'}}_{\text{reward-to-go}}-b\Big)\Big] \]
+          <div class="note"><b>因果性</b>：\(t\) 时刻的行为影响不了 \(t\) 之前的奖励 —— 只对未来奖励加权，白降方差不引偏。</div>
+        </div>
+      </div>
+      <div>
+        <div class="qa small"><p><b>课程里最美的直觉：</b>把它与模仿学习的梯度 \(\mathbb{E}[\nabla\log\pi(a|s)]\) 并排看 —— <b>策略梯度就是「按奖励加权的模仿学习」</b>：多模仿高分轨迹里的自己，少模仿低分轨迹里的自己。「试错」第一次有了微分形式。</p></div>
+        <div class="qa small"><p><b>⛏️ 挖到主线：</b>实现上用「替代目标」\(\tilde J=\frac1N\sum\log\pi_\theta\cdot(\hat R-b)\)（加权极大似然）——你现在能看懂为什么 GRPO/K2.5/MAI 的目标函数都长成「\(\log\pi\) 或比率 × 优势」：它们全是这个替代目标加上不同的方差与漂移控制。K1.5 的平方损失求导后也回到这里。</p></div>
+        <p class="small sub">课程警句：原始策略梯度<b>噪声极大</b>、对奖励尺度敏感、最好配大 batch 与稠密奖励 —— 这三句话预言了主线的全部改进方向。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="2">
+  <div class="inner">
+    <div class="kicker">附录 A3 · CS224R L3/L4</div>
+    <h2>基线与优势估计：方差工程的完整谱系<span class="en">从「减去均值」到 GAE，再到「干脆用组内统计」</span></h2>
+    <div class="cols">
+      <div>
+        <div class="math small">
+          \[ \mathbb{E}_{a\sim\pi_\theta}\big[\nabla_\theta\log\pi_\theta(a|s)\cdot b\big]=b\,\nabla_\theta\!\!\sum_a\pi_\theta(a|s)=b\,\nabla_\theta 1=0 \]
+          <div class="note"><b>一行证明</b>：减去任意常数基线不改变梯度期望（无偏），却能大幅削方差 —— 平均奖励就是很好的基线。</div>
+        </div>
+        <div class="math small">
+          \[ \hat A^{\mathrm{GAE}}_t=\sum_{l\ge0}(\gamma\lambda)^l\,\delta_{t+l},\qquad \delta_t=r_t+\gamma V(s_{t+1})-V(s_t) \]
+          <div class="note">价值函数的两种拟合：MC 回归（无偏高方差）vs TD 自举（低方差有偏）；GAE 用 \(\lambda\) 在两端连续调和。这是 PPO（含 Tülu 3 的 RLVR）的标准配置。</div>
+        </div>
+      </div>
+      <div>
+        <div class="qa small"><p><b>⛏️ 挖到主线：</b>2025 年的关键工程判断 —— 在「终点 0/1 奖励 + 超长序列」下，critic 既学不准也太贵，于是 <b>GRPO 用「同题多解的组内均值/方差」顶替 critic</b>：基线从「学出来的函数」退回「算出来的统计量」，无偏性由上面那行证明背书。MAI/K2.5 的 token 级归一化则是把「哪些 token 分到多少信用」这个 GAE 未竟的问题，用等权重粗暴而稳健地回答。</p></div>
+        <div class="qa small"><p><b>面试追问：既然 GRPO 赢了，价值函数死了吗？</b>→ 没有。过程奖励/长程信用分配（主线综合篇的开放问题）大概率要它回归 —— 只是形态可能是「隐式价值」（如 IQL 式，见附录 B2）而非 PPO 的显式 critic。</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="2">
+  <div class="inner">
+    <div class="kicker">附录 A4 · CS224R L3/L5/L6</div>
+    <h2>重要性采样 → KL 约束：off-policy 的原罪与救赎<span class="en">主线所有「裁剪/门控」的数学出生地</span></h2>
+    <div class="cols">
+      <div>
+        <div class="math small">
+          \[ \nabla J(\theta')=\mathbb{E}_{\tau\sim p_\theta}\Big[\prod_{t=1}^{T}\frac{\pi_{\theta'}(a_t|s_t)}{\pi_\theta(a_t|s_t)}\cdot(\cdots)\Big] \]
+          <div class="note">想复用旧策略的数据 → 重要性采样。但<b>轨迹级</b>比率是 \(T\) 个比率的连乘：长序列下爆炸或消失。</div>
+        </div>
+        <div class="math small">
+          \[ \nabla J(\theta')\approx\frac1N\sum_{i,t}\frac{\pi_{\theta'}(a_{i,t}|s_{i,t})}{\pi_\theta(a_{i,t}|s_{i,t})}\,\nabla\log\pi_{\theta'}\cdot\hat A_{i,t},\quad \text{s.t. } \mathbb{D}_{\mathrm{KL}}(\pi_{\theta'}\|\pi_\theta)\le\varepsilon \]
+          <div class="note">救赎两步：①退到 <b>token 级比率</b>（状态分布比率近似为 1）；②加 <b>KL 信任域</b>限制单步偏移。PPO 的 clip 就是这个约束的一阶便宜实现。</div>
+        </div>
+      </div>
+      <div>
+        <div class="qa small"><p><b>⛏️ 挖到主线：</b>把这页当「解码器」用 —— GRPO 的 clip、GLM 的 IcePop 门控、K2.5 的 log-ratio 双侧裁剪、MAI 的自适应熵上界，全是「token 级比率 + 某种信任域」这一个模板的四种填空。区别只在<b>比率对谁算</b>（旧策略？推理引擎？）和<b>越界后干什么</b>（截断值？置零梯度？）。</p></div>
+        <div class="qa small"><p><b>面试追问：为什么 LLM 后训练不用 Q-learning/replay buffer 这套「真 off-policy」？</b>→ ①动作空间 = 词表、序列组合爆炸，\(\max_a Q\) 不可算；②终点稀疏奖励下 TD 自举要跨数千 token 传播，误差累积；③预训练已给出极强先验策略，policy-based 微调远比 value-based 从头估值高效。课程里 SAC/DQN 一脉在 LLM 世界只剩「轻度 off-policy + 快拉回」的折中形态。</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="1">
+  <div class="inner">
+    <div class="kicker">附录 B1 · CS224R L2</div>
+    <h2>模仿学习：SFT 的真名与复合误差<span class="en">Behavior Cloning、covariate shift、DAgger —— OPD 的祖父</span></h2>
+    <div class="cols">
+      <div>
+        <div class="math small">
+          \[ \min_\theta\ -\,\mathbb{E}_{(s,a)\sim\mathcal D}\big[\log\pi_\theta(a|s)\big] \]
+          <div class="note">BC = 在专家数据上做生成式建模。<b>SFT 就是 BC</b>，「自回归分布 = 最大表达力的动作分布」——LLM 天生持有课程里最强的策略类。</div>
+        </div>
+        <ul class="clean small">
+          <li><b>复合误差</b>：监督学习假设输入独立于预测；但策略的动作决定下一个状态 → 小错把自己带出数据分布 \(p_{\text{expert}}(s)\neq p_\pi(s)\) → 错上加错；</li>
+          <li><b>DAgger</b>：跑自己的策略、在<b>自己访问的状态</b>上要专家标签、聚合再训 —— 把误差从 \(O(\varepsilon T^2)\) 压回 \(O(\varepsilon T)\)；</li>
+          <li><b>HG-DAgger</b>：专家只在出错时接管（干预式数据）。</li>
+        </ul>
+      </div>
+      <div>
+        <div class="qa small"><p><b>⛏️ 挖到主线（一箭三雕）：</b>①LLM 的<b>暴露偏差</b>就是复合误差的换名；②<b>OPD 是 DAgger 的工业化身</b>——「在学生自己的轨迹上向教师要逐 token 标签」与 DAgger 的伪代码逐字对应，只是专家从人变成了教师模型（查询成本→0，DAgger 的最大痛点消失了）；③GLM-5「错误片段保留但屏蔽 loss」= 干预式纠错数据的 LLM 形态。</p></div>
+        <div class="qa small"><p><b>面试追问：SFT 数据越多越好吗？</b>→ 课程答案：offline BC 无论多少数据都受分布外漂移威胁，「可靠性来自在自己的分布上获得纠正」—— 这正是为什么 2026 所有旗舰把资源从 SFT 挪向 on-policy 的 RL 与蒸馏。</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="1">
+  <div class="inner">
+    <div class="kicker">附录 B2 · CS224R L7</div>
+    <h2>离线 RL：从固定数据集里挤出超越数据的策略<span class="en">Filtered BC → AWR → IQL —— 以及它与 DPO / 拒绝采样 / 搜索日志的血缘</span></h2>
+    <div class="cols">
+      <div>
+        <p class="small sub"><b>核心病灶</b>：静态数据集上做 Q 学习，策略会追逐 <b>OOD 动作上被高估的 Q 值</b>（网络在数据支撑集外自由幻想）。三级解药：</p>
+        <div class="math small">
+          \[ \text{①过滤式 BC：只模仿 } r(\tau)&gt;\eta \text{ 的轨迹} \]
+          \[ \text{②AWR：}\ \theta\leftarrow\arg\max_\theta\,\mathbb{E}_{\mathcal D}\big[\log\pi_\theta(a|s)\,e^{A(s,a)/\alpha}\big] \]
+          \[ \text{③IQL：}\ V\leftarrow\arg\min\ \mathbb{E}\big[\ell_2^\lambda\big(V(s)-Q(s,a)\big)\big] \]
+          <div class="note">AWR 近似「KL 约束下最大化 Q」的闭式解 \(\pi^*\!\propto\!\pi_\beta e^{A/\alpha}\)；IQL 用<b>期望位数回归</b>（不对称平方损失）让 \(V\) 逼近数据支撑内动作的高分位值——<b>全程不查询任何 OOD 动作</b>。离线 RL 能做「轨迹拼接」：把两段平庸轨迹的好段落缝成超越任何示范者的路径。</div>
+        </div>
+      </div>
+      <div>
+        <div class="qa small"><p><b>⛏️ 挖到主线：</b>①<b>拒绝采样微调 / best-of-n 蒸馏（R1 第三阶段、SWE-smith 的 RFT）就是过滤式 BC</b>；②AWR 的 \(\pi^*\!\propto\!\pi_\beta e^{A/\alpha}\) 与 DPO/K1.5 的 \(\pi^*\!\propto\!\pi_{\mathrm{ref}}e^{r/\beta}\) 是<b>同一个闭式解</b>——DPO 本质是离线偏好 RL；③「别信数据支撑集外的值」正是 KL 正则/裁剪的离线版表述。</p></div>
+        <div class="qa small"><p><b>⛏️ 挖到搜索系统：</b>企业里最大的数据资产是<b>用户交互日志</b>——天然的离线 RL 数据集（行为策略=旧版模型+用户混合）。课程的警告直接适用：拿日志做 naive RL 会追逐日志外动作的幻想收益；正解是 AWR/IQL 式保守学习，或把日志用于训 GRM/校准（落地篇①的立场，在此获得理论根据）。</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="6">
+  <div class="inner">
+    <div class="kicker">附录 C1 · CS224N L2/L10</div>
+    <h2>词向量 → 稠密检索：召回层的数学<span class="en">word2vec 的对比学习基因，一路遗传到 DPR 双塔</span></h2>
+    <div class="cols">
+      <div>
+        <div class="math small">
+          \[ P(o|c)=\frac{\exp(\mathbf u_o^\top \mathbf v_c)}{\sum_{w}\exp(\mathbf u_w^\top \mathbf v_c)} \]
+          <div class="note">word2vec：让共现词的向量内积大 —— 「相似性 = 内积」这一几何信念的起点。</div>
+        </div>
+        <div class="math small">
+          \[ \mathcal L_{\mathrm{DPR}}=-\log\frac{e^{\,E_Q(q)^\top E_P(p^+)}}{e^{\,E_Q(q)^\top E_P(p^+)}+\sum_j e^{\,E_Q(q)^\top E_P(p_j^-)}} \]
+          <div class="note">DPR：问-段双塔 BERT，QA 正例 + <b>批内负例</b>做对比学习 —— 结构与 word2vec 同构，只是「词」换成了「查询/段落」。</div>
+        </div>
+        <table class="tb" style="font-size:.85rem">
+          <tr><th>检索器</th><th>机制</th><th>速度/精度</th></tr>
+          <tr><td>BM25</td><td>词重合 + IDF</td><td class="dim">快 · 词面精确</td></tr>
+          <tr><td>DPR 双塔</td><td>单向量内积（可预建索引）</td><td class="dim">快 · 语义泛化</td></tr>
+          <tr><td>ColBERT</td><td>token 级后期交互</td><td class="dim">中 · 两者兼顾</td></tr>
+          <tr><td>LLM 判分</td><td>逐对生成式打分</td><td class="dim">慢 · 最准（重排层）</td></tr>
+        </table>
+      </div>
+      <div>
+        <div class="qa small"><p><b>⛏️ 挖到落地篇：</b>全景图里「混合召回 BM25+向量」那个小方块，内部就是这一页：BM25 兜住词面精确性（型号/条款号），DPR 兜住语义改写，重排层再用慢而准的 cross-encoder/LLM。<b>检索器可训练</b>（DPR 用日志中的 QA 对持续微调）——召回层也在你的飞轮里。</p></div>
+        <div class="qa small"><p><b>面试追问：为什么不用生成器的嵌入直接做检索？</b>→ 检索需要「对称、可预计算、内积可索引（ANN）」的表征；生成模型的表征为下一 token 优化，二者目标不同 —— 这就是嵌入模型独立存在（并被教师蒸馏，见落地③）的原因。</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="6">
+  <div class="inner">
+    <div class="kicker">附录 C2 · CS224N L10</div>
+    <h2>RAG 的证据链：FiD、迷失在中间、幻觉引用<span class="en">课程实验数据，恰好是落地篇两大设计决策的证词</span></h2>
+    <div class="cols">
+      <div>
+        <ul class="clean small">
+          <li><b>Retriever–Reader → FiD</b>：从「抽取答案」到「融合多段生成答案」（DPR+T5，各段独立编码、解码器统一融合）—— 现代 RAG 生成器的原型；</li>
+          <li><b>Lost in the middle</b>（Liu+ 2023）：相关文档放在上下文<b>中部</b>时性能骤降 —— LM 的注意力并不均匀；</li>
+          <li><b>RAG 饱和</b>：检索器召回率随文档数缓慢升到 90%，但 RAG 端到端性能在 <b>10–20 篇后即饱和</b> —— 塞更多文档≠更好答案；</li>
+          <li><b>幻觉引用</b>：引用本身也是生成的——课程实验：输出「看起来有用」（人评高分）但引用的精确率与召回率都很低。</li>
+        </ul>
+      </div>
+      <div>
+        <div class="qa small"><p><b>⛏️ 挖到主线与落地篇：</b>①「10–20 篇饱和 + 迷失在中间」正是<b>长上下文 vs RAG 交叉点</b>存在的微观机理——V4/GLM-5.2 的压缩注意力（可学习的「注意什么」）是对它的架构级回答，检索粗筛+精读是系统级回答；②「幻觉引用」实验为落地①的<b>引用可验证奖励</b>提供了必要性证明：引用格式正确≠引用真实支持，所以需要 NLI 蕴含判定 + 两级免疫。课程指出病，主线论文开的方。</p></div>
+        <div class="qa small"><p><b>面试追问：top-k 取多大？</b>→ 不是越大越好：先给召回率-饱和曲线的定性答案（20 内），再谈重排后精选 3–5 篇 + 位置工程（关键证据放两端），最后提 agentic 逐步检索绕开单轮上下文限制。</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="6">
+  <div class="inner">
+    <div class="kicker">附录 C3 · CS224N L10</div>
+    <h2>语言智能体的学术前身：ReAct、Reflexion、记忆、Toolformer<span class="en">2022–2024 的这些「小」论文，是主线智能体 RL 的概念货架</span></h2>
+    <div class="cols">
+      <div>
+        <ul class="clean small">
+          <li><b>ReAct</b>：交替「思考↔行动」——推理是<b>内部动作</b>，为观察→动作的艰难映射搭桥；显著减少 CoT 幻觉；</li>
+          <li><b>Reflexion</b>：失败轨迹→语言化自我反思→存为提示 —— 用自然语言实现的「无梯度 RL」；</li>
+          <li><b>记忆三分类</b>：情景（事件流）/语义（提炼知识）/程序（代码技能, Voyager）——读=检索，写=追加或反思；</li>
+          <li><b>Toolformer</b>：自监督插入 API 调用——只保留<b>能降低后续 token 损失</b>的调用；</li>
+          <li><b>多智能体辩论 / Orchestrator</b>（Magentic-One）：提示工程时代的组织结构。</li>
+        </ul>
+      </div>
+      <div>
+        <div class="qa small"><p><b>⛏️ 挖到主线（每条都有直系后代）：</b>ReAct → GLM「交错思考」与 K2 的思考-调用交替（从提示技巧变成 <b>SFT 模板 + RL 目标</b>）；Reflexion 的语言反馈 → K2 自评 rubric / GRM（从提示存档变成<b>训练信号</b>）；记忆分类 → K2.5 Swarm 的「子体只回传引用+摘要」与 DeepResearch 上下文管理；Toolformer 的「按对 loss 的贡献筛选调用」→ K2 工具合成流水线的 judge 过滤；辩论/Orchestrator → PARL 把「组织结构」本身变成<b>可训练策略</b>。一句话：<b>2023 年靠提示实现的一切，2026 年都被后训练内化成了参数。</b></p></div>
+        <p class="small sub">课程同页彩蛋：SWE-smith 用「拒绝采样微调（RFT）」训编码智能体 —— 又一次遇见过滤式 BC（附录 B2）。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="5">
+  <div class="inner">
+    <div class="kicker">附录 D1 · CS224R L8</div>
+    <h2>偏好奖励学习：Bradley–Terry 与 2017 年的先知<span class="en">Christiano et al. —— RLHF 在成为 LLM 技术之前，是机器人技术</span></h2>
+    <div class="cols">
+      <div>
+        <div class="math small">
+          \[ P(\tau^1\succ\tau^2)=\sigma\Big(\sum_t r_\phi(s_t^1,a_t^1)-\sum_t r_\phi(s_t^2,a_t^2)\Big) \]
+          \[ \mathcal L(\phi)=-\,\mathbb{E}_{(\tau^1\succ\tau^2)}\big[\log P(\tau^1\succ\tau^2)\big] \]
+          <div class="note">人类只比较<b>轨迹片段对</b>（比打绝对分容易且一致），BT 模型把比较转成奖励差的极大似然。2017 年用约 900 次人类比较教会模拟 Hopper 后空翻 —— 五年后同一配方 + LLM = InstructGPT。</div>
+        </div>
+        <p class="small sub"><b>逆强化学习（IRL）一句话</b>：奖励是对行为的<b>解释</b>而非给定——从示范反推奖励。它提醒我们：主线里「验证器/rubric/GRM」都是在人为<b>指定</b>解释，指定就会有漏洞。</p>
+      </div>
+      <div>
+        <div class="qa small"><p><b>⛏️ 挖到主线：</b>①DPO 的推导正是把这页的 BT 塞进 KL 约束闭式解（附录 B2 的同一个 \(\pi^*\)）—— 三条线索在此汇合；②奖励作弊的理论根源在这页就种下：\(r_\phi\) 是<b>代理</b>，Goodhart 定律说「指标被优化就不再是好指标」——主线的 rubric 轮换、两级免疫、行为信号低权重化，全是对同一条定律的工程回应。</p></div>
+        <div class="qa small"><p><b>面试追问：为什么偏好对比而不是绝对打分？</b>→ 人类打绝对分噪声大、标尺漂移；比较是序数判断，跨标注员一致性高——同理，K2 自评 rubric 用<b>两两排序</b>而非打分，GRM 输出多维评价而非单一分数。</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="5">
+  <div class="inner">
+    <div class="kicker">附录 D2 · CS224N L4/L14</div>
+    <h2>解码与分词：rollout 工程的两块底砖<span class="en">采样策略决定探索；分词决定「动作空间」本身</span></h2>
+    <div class="cols">
+      <div>
+        <div class="math small">
+          \[ p_i\propto\exp(z_i/T);\qquad \text{top-}p:\ \text{最小集合 } S \text{ 使 } \textstyle\sum_{i\in S}p_i\ge p \]
+          <div class="note">解码谱系：greedy/beam（确定性，易重复）→ 温度 \(T\)（整体锐化/平滑）→ top-k / top-p（截断尾部幻觉区）。<b>RL 视角：解码策略 = 探索策略</b>。</div>
+        </div>
+        <ul class="clean small">
+          <li><b>BPE 分词</b>：从字符对频率自底向上合并——词表是<b>学出来的压缩码本</b>；</li>
+          <li>同一段文本可有多种 token 化 ⇒ 文本往返（text-in-text-out）会造成<b>重分词漂移</b>。</li>
+        </ul>
+      </div>
+      <div>
+        <div class="qa small"><p><b>⛏️ 挖到主线：</b>①K2 的<b>温度衰减</b> = 「先探索后利用」在解码参数上的实现——课程的采样谱系给了它坐标；②GLM-5 异步 RL 坚持 <b>token-in-token-out</b>，正是因为重分词漂移会污染重要性比率（附录 A4 的失配又多了一个来源——这次来自分词器）；③投机解码（GLM-5.2 +20% 接受率）本质是「便宜策略提议、昂贵策略验证」——与 PARL 的「小子体先训、大子体后换」共享同一种成本结构直觉。</p></div>
+        <div class="qa small"><p><b>面试追问：RL 训练时 rollout 温度怎么定？</b>→ 答题框架：太低→组内全同、GRPO 优势为零、无梯度；太高→劣质样本淹没信号。所以「初期高温+衰减」（K2）或熵目标闭环（MAI）——把温度从超参变成被控变量。</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="5">
+  <div class="inner">
+    <div class="kicker">附录 D3 · CS224N L11</div>
+    <h2>评测方法论：整条飞轮的「度量衡署」<span class="en">测不准的能力必然被作弊 —— 评测是奖励设计的镜像问题</span></h2>
+    <div class="cols">
+      <div>
+        <ul class="clean small">
+          <li><b>污染</b>：评测集混入训练数据 → 榜单虚高。对策：n-gram/嵌入去污染（Tülu 3 的纪律）、私有 unseen 套件（MAI 的内部 NLL 集）、动态换题（AIME 逐年、LiveCodeBench 滚动）；</li>
+          <li><b>LLM-as-judge 的系统性偏差</b>：位置偏好（先出现的赢）、长度偏好（长=好）、自恋偏好（偏爱同家族文风）——对策：换序重评、长度控制、多裁判；</li>
+          <li><b>智能体评测的三难</b>：环境搭建复杂、成功标准开放、多条有效路径 —— 不能只看 pass rate，还要审计过程(步数/成本/违规)。</li>
+        </ul>
+      </div>
+      <div>
+        <div class="qa small"><p><b>⛏️ 挖到主线：</b>评测和奖励是<b>同一个函数的两次使用</b>（离线叫评测，在线叫奖励），所以它们生同样的病：judge 偏差 ↔ GRM 被讨好；污染 ↔ 训练泄漏测试用例（GLM-5.2 的 curl 作弊正是「主动自我污染」）。主线的答案一体两面：评测侧去污染+多裁判，奖励侧 rubric 轮换+两级免疫。</p></div>
+        <div class="qa small"><p><b>⛏️ 挖到搜索系统：</b>落地篇全景图里的「评测闸门」由此页展开——企业版三件套：去污染的内部问答金标集（防吃进训练）、带位置/长度校正的 GRM 抽检、DeepResearch 的过程审计（引用真实率/步数预算）。<b>没有可信度量衡，飞轮转得越快错得越远。</b></p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-ch="9">
+  <div class="inner">
+    <div class="kicker">附录 · 总图</div>
+    <h2>三层贯通：课程概念 → 主线论文 → 搜索系统<span class="en">一张表收拢全部血缘 —— 面试前最后一眼看这页</span></h2>
+    <table class="tb" style="font-size:.82rem">
+      <tr><th>地基（CS224R / CS224N）</th><th>主线论文里的化身</th><th>企业搜索系统里的岗位</th></tr>
+      <tr><td>REINFORCE + 基线无偏性</td><td>GRPO 组内基线 · K2.5 \(\bar r(x)\)</td><td>所有 RL 训练模块的梯度引擎</td></tr>
+      <tr><td>重要性采样 + KL 信任域</td><td>PPO clip → IcePop / log-ratio 门控 / 自适应熵</td><td>异步 RL 的漂移兜底</td></tr>
+      <tr><td>BC / DAgger / 干预数据</td><td>SFT · OPD（在学生轨迹上要教师标签）· 错误屏蔽</td><td>蒸馏车间 · 延迟分层</td></tr>
+      <tr><td>过滤式 BC（离线 RL 入门解）</td><td>拒绝采样微调（R1 第三阶段 · RFT）</td><td>专家轨迹回收进 SFT</td></tr>
+      <tr><td>AWR / IQL 闭式解 \(\pi^*\!\propto\!\pi_\beta e^{A/\alpha}\)</td><td>DPO · K1.5 OPMD 的同一枚硬币</td><td>从用户日志保守学习的理论许可</td></tr>
+      <tr><td>Bradley–Terry 偏好学习（2017）</td><td>RM → 自评 rubric → GRM</td><td>行为信号 → 奖励校准层</td></tr>
+      <tr><td>word2vec → DPR 对比学习</td><td>（主线未涉及的空白，附录补上）</td><td>混合召回双塔 + 可训练检索器</td></tr>
+      <tr><td>FiD · lost-in-the-middle · 幻觉引用</td><td>压缩注意力（CSA/HCA · IndexShare）</td><td>「检索粗筛+长上下文精读」与引用验证奖励</td></tr>
+      <tr><td>ReAct / Reflexion / 记忆 / Toolformer</td><td>交错思考 · GRM · 工具合成 · 上下文管理</td><td>DeepResearch 模式的全部器官</td></tr>
+      <tr><td>Orchestrator / 多智能体辩论</td><td>PARL（组织结构可训练化）</td><td>Agent Swarm 并行子体</td></tr>
+      <tr><td>评测：污染 / judge 偏差 / 过程审计</td><td>Tülu 3 去污染 · rubric 轮换 · 两级免疫</td><td>评测闸门 + 反作弊审计</td></tr>
+    </table>
+    <p class="sub small" style="margin-top:.5rem"><b>收官直觉：</b>2026 年的旗舰技术报告，几乎没有发明新概念 —— 它们是把这两门课的每一个概念，在「万亿参数 + 真实环境 + 工业约束」下重新实现了一遍。<b>地基没变，变的是承重。</b></p>
+  </div>
+</section>
+
+<!-- ============ 参考文献 ============ -->
+<section class="slide" data-ch="9">
+  <div class="inner">
+    <div class="kicker">References · 原始论文与报告</div>
+    <h2>参考链接</h2>
+    <div class="cols">
+      <ol class="refs" style="padding-left:1.2rem">
+        <li><a href="https://arxiv.org/abs/2411.15124">Tülu 3: Pushing Frontiers in Open Language Model Post-Training</a><br><span class="who">Lambert et al., AI2 · arXiv:2411.15124 (2024)</span></li>
+        <li><a href="https://arxiv.org/abs/2402.03300">DeepSeekMath（GRPO 提出）</a><br><span class="who">Shao et al., DeepSeek-AI · arXiv:2402.03300 (2024)</span></li>
+        <li><a href="https://arxiv.org/abs/2501.12948">DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via RL</a><br><span class="who">DeepSeek-AI · arXiv:2501.12948 (2025)</span></li>
+        <li><a href="https://arxiv.org/abs/2501.12599">Kimi k1.5: Scaling Reinforcement Learning with LLMs</a><br><span class="who">Kimi Team · arXiv:2501.12599 (2025)</span></li>
+        <li><a href="https://arxiv.org/abs/2507.20534">Kimi K2: Open Agentic Intelligence</a><br><span class="who">Kimi Team · arXiv:2507.20534 (2025)</span></li>
+        <li><a href="https://arxiv.org/abs/2602.02276">Kimi K2.5: Visual Agentic Intelligence</a><br><span class="who">Kimi Team · arXiv:2602.02276 (2026)</span></li>
+      </ol>
+      <ol class="refs" start="7" style="padding-left:1.2rem">
+        <li><a href="https://arxiv.org/abs/2602.15763">GLM-5: From Vibe Coding to Agentic Engineering</a><br><span class="who">GLM-5 Team, Zhipu AI · arXiv:2602.15763 (2026) · <a href="https://z.ai/blog/glm-5.2">GLM-5.2 博客</a> · <a href="https://github.com/zai-org/GLM-5">GitHub</a></span></li>
+        <li><a href="https://arxiv.org/abs/2606.19348">DeepSeek-V4: Towards Highly Efficient Million-Token Context Intelligence</a><br><span class="who">DeepSeek-AI · arXiv:2606.19348 (2026)</span></li>
+        <li><a href="https://microsoft.ai/wp-content/uploads/2026/06/main_20260602_2.pdf">MAI-Thinking-1: Building a Hill-Climbing Machine（109页技术报告）</a><br><span class="who">Microsoft AI · 2026 · <a href="https://microsoft.ai/news/introducing-mai-thinking-1/">发布博客</a></span></li>
+        <li><a href="https://github.com/THUDM/slime">slime：面向 RL Scaling 的后训练框架</a><br><span class="who">Zhipu AI / THUDM · GitHub</span></li>
+        <li><a href="https://arxiv.org/abs/2509.18521">APRIL: Active Partial Rollouts in RL to Tame Long-tail Generation</a><br><span class="who">arXiv:2509.18521 (2025)</span></li>
+        <li><span class="who">背景：<a href="https://arxiv.org/abs/2203.02155">InstructGPT (RLHF)</a> · <a href="https://arxiv.org/abs/2305.18290">DPO</a> · <a href="https://arxiv.org/abs/2503.14476">DAPO</a> · <a href="https://kellerjordan.github.io/posts/muon/">Muon</a></span></li>
+        <li><span class="who">搜索 RL 延伸：<a href="https://arxiv.org/abs/2112.09332">WebGPT</a> · <a href="https://arxiv.org/abs/2503.09516">Search-R1</a></span></li>
+        <li><span class="who">附录课程：<a href="https://cs224r.stanford.edu/">Stanford CS224R 深度强化学习</a> · <a href="https://web.stanford.edu/class/cs224n/">Stanford CS224N NLP</a>（讲义 PDF 见课程时间表）</span></li>
+        <li><span class="who">附录论文：<a href="https://arxiv.org/abs/1011.0686">DAgger</a> · <a href="https://arxiv.org/abs/1910.00177">AWR</a> · <a href="https://arxiv.org/abs/2110.06169">IQL</a> · <a href="https://arxiv.org/abs/1706.03741">Christiano 偏好RL</a> · <a href="https://arxiv.org/abs/2004.04906">DPR</a> · <a href="https://arxiv.org/abs/2007.01282">FiD</a> · <a href="https://arxiv.org/abs/2307.03172">Lost in the Middle</a> · <a href="https://arxiv.org/abs/2210.03629">ReAct</a> · <a href="https://arxiv.org/abs/2302.04761">Toolformer</a></span></li>
+      </ol>
+    </div>
+    <p class="sub small" style="margin-top:1rem;text-align:center">本演示所有公式与数据均取自上述公开报告；转述如有出入，以原文为准。 · 键盘 ← → 翻页 · 完</p>
+  </div>
+</section>
+
+<!-- END_SLIDES -->
+</main>
+<div class="foot"><div class="bar" id="bar"></div></div>
+<div id="pager">1 / 1</div>
+<div id="hint">← → 翻页 · Home/End 首尾</div>
+<script>
+(function(){
+  const slides=[...document.querySelectorAll('.slide')];
+  const bar=document.getElementById('bar'), pager=document.getElementById('pager');
+  let cur=0;
+  function clamp(i){return Math.max(0,Math.min(slides.length-1,i));}
+  function go(i,push=true){
+    cur=clamp(i);
+    slides.forEach((s,k)=>s.classList.toggle('active',k===cur));
+    bar.style.width=((cur+1)/slides.length*100)+'%';
+    pager.textContent=(cur+1)+' / '+slides.length;
+    if(push) location.hash='#/'+(cur+1);
+    const el=slides[cur]; el.scrollTop=0;
+  }
+  addEventListener('keydown',e=>{
+    if(['ArrowRight','PageDown',' '].includes(e.key)){e.preventDefault();go(cur+1);}
+    else if(['ArrowLeft','PageUp'].includes(e.key)){e.preventDefault();go(cur-1);}
+    else if(e.key==='Home'){go(0);} else if(e.key==='End'){go(slides.length-1);}
+  });
+  let tx=null;
+  addEventListener('touchstart',e=>tx=e.touches[0].clientX,{passive:true});
+  addEventListener('touchend',e=>{if(tx===null)return;const dx=e.changedTouches[0].clientX-tx;
+    if(Math.abs(dx)>60) go(cur+(dx<0?1:-1)); tx=null;},{passive:true});
+  addEventListener('click',e=>{
+    if(e.target.closest('a')||getSelection().toString()) return;
+    const x=e.clientX/innerWidth; if(x>0.85)go(cur+1); else if(x<0.15)go(cur-1);
+  });
+  function fromHash(){const m=location.hash.match(/#\/(\d+)/); go(m?+m[1]-1:0,false);}
+  addEventListener('hashchange',fromHash);
+  fromHash();
+})();
+</script>
+</body>
+</html>
