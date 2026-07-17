@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<script type="application/json" id="cowork-artifact-meta">
+{
+  "name": "Post Training Search Learning Tracker",
+  "schemaVersion": 1,
+  "description": "Darcy 的 post-training 与搜索学习进度仪表盘:CS224N/CS224R/CS336、Deep Learning 教科书、Stoody.ai Agent/RL 课程、DeepLearning.AI 后训练短课、Instagram AI Search Anchor Week 材料。大纲取自各课程官网与本地 syllabus。",
+  "mcpTools": [],
+  "mcpServerNames": []
+}
+</script>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Post-training & Search 学习进度</title>
+<style>
+  :root { color-scheme: light dark; }
+  .viz-root {
+    color-scheme: light;
+    --page:           #f9f9f7;
+    --surface-1:      #fcfcfb;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --grid:           #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --bar-fill:       #2a78d6;
+    --bar-track:      #e1e0d9;
+    --good:           #0ca30c;
+    --good-text:      #006300;
+    --tag-post:       #2a78d6;
+    --tag-search:     #008300;
+    --tag-found:      #e87ba4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --page:           #0d0d0d;
+      --surface-1:      #1a1a19;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --grid:           #2c2c2a;
+      --baseline:       #383835;
+      --border:         rgba(255,255,255,0.10);
+      --bar-fill:       #3987e5;
+      --bar-track:      #2c2c2a;
+      --good:           #0ca30c;
+      --good-text:      #0ca30c;
+      --tag-post:       #3987e5;
+      --tag-search:     #008300;
+      --tag-found:      #d55181;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: transparent; }
+  .viz-root {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--page);
+    color: var(--text-primary);
+    min-height: 100vh;
+    padding: 28px 20px 48px;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; }
+  header h1 { font-size: 22px; font-weight: 650; letter-spacing: -0.01em; }
+  header p { color: var(--text-secondary); font-size: 13px; margin-top: 6px; }
+  .updated { color: var(--text-muted); font-size: 12px; margin-top: 2px; }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 22px 0 10px; }
+  .tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .tile .label { font-size: 12px; color: var(--text-secondary); }
+  .tile .value { font-size: 28px; font-weight: 650; margin-top: 4px; }
+  .tile .sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .tile .value .unit { font-size: 15px; font-weight: 500; color: var(--text-secondary); }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 14px 2px 6px; }
+  .legend span { font-size: 12px; color: var(--text-secondary); display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+
+  .cards { display: flex; flex-direction: column; gap: 12px; margin-top: 10px; }
+  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
+  .card-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .card h2 { font-size: 15px; font-weight: 600; }
+  .card .meta { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+  .card .meta a { color: var(--text-secondary); }
+  .pct { font-size: 20px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .pct .frac { font-size: 12px; font-weight: 400; color: var(--text-muted); margin-left: 6px; }
+  .tags { display: inline-flex; gap: 8px; margin-left: 8px; vertical-align: middle; }
+  .tag { font-size: 11px; color: var(--text-secondary); display: inline-flex; align-items: center; gap: 5px; }
+
+  .bar { margin-top: 12px; height: 8px; border-radius: 4px; background: var(--bar-track); overflow: hidden; }
+  .bar > i { display: block; height: 100%; border-radius: 4px 0 0 4px; background: var(--bar-fill); }
+  .bar > i.full { border-radius: 4px; }
+  .bar > i.done-ish { background: var(--good); }
+  .status-note { font-size: 12px; margin-top: 8px; color: var(--text-secondary); }
+  .status-note .chip-done { color: var(--good-text); font-weight: 600; }
+
+  details { margin-top: 10px; }
+  summary { font-size: 12.5px; color: var(--text-secondary); cursor: pointer; user-select: none; }
+  summary:hover { color: var(--text-primary); }
+  details ol { margin: 8px 0 2px 20px; }
+  details li { font-size: 12.5px; color: var(--text-secondary); line-height: 1.75; }
+  details .part { font-size: 12px; color: var(--text-muted); margin: 6px 0 0 2px; font-weight: 600; list-style: none; }
+  .pending { font-size: 12.5px; color: var(--text-muted); margin-top: 8px; font-style: normal; }
+
+  footer { margin-top: 26px; font-size: 12px; color: var(--text-muted); line-height: 1.7; }
+</style>
+</head>
+<body>
+<div class="viz-root">
+<div class="wrap">
+  <header>
+    <h1>Post-training & Search 学习进度</h1>
+    <p>Darcy 的学习追踪 · 8 项材料,覆盖后训练、搜索与 Agent、基础理论三条主线</p>
+    <p class="updated">最近更新:2026-07-16 · 想更新进度,直接告诉 Claude 即可</p>
+  </header>
+
+  <div class="tiles">
+    <div class="tile">
+      <div class="label">总体进度(按单元加权)</div>
+      <div class="value">17<span class="unit">%</span></div>
+      <div class="sub">15 / 92 单元(2 项材料单元数待定)</div>
+    </div>
+    <div class="tile">
+      <div class="label">基本完成</div>
+      <div class="value">1<span class="unit"> / 8 项</span></div>
+      <div class="sub">CS224R Deep RL</div>
+    </div>
+    <div class="tile">
+      <div class="label">未开始</div>
+      <div class="value">7<span class="unit"> 项</span></div>
+      <div class="sub">建议下一步:DL.AI 后训练短课(约 1.5 小时)</div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span><i class="dot" style="background:var(--tag-post)"></i>后训练</span>
+    <span><i class="dot" style="background:var(--tag-search)"></i>搜索与 Agent</span>
+    <span><i class="dot" style="background:var(--tag-found)"></i>基础理论</span>
+  </div>
+
+  <div class="cards">
+
+    <div class="card">
+      <div class="card-top">
+        <div>
+          <h2>CS224R · Deep Reinforcement Learning
+            <span class="tags"><span class="tag"><i class="dot" style="background:var(--tag-post)"></i>后训练</span></span>
+          </h2>
+          <div class="meta">Stanford · Spring 2026 · 17 讲 · <a href="https://cs224r.stanford.edu/">cs224r.stanford.edu</a></div>
+        </div>
+        <div class="pct">90%<span class="frac">≈15 / 17 讲</span></div>
+      </div>
+      <div class="bar"><i class="done-ish" style="width:90%"></i></div>
+      <p class="status-note"><span class="chip-done">✓ 基本完成</span> —— 按你的描述估记为 90%,告诉我具体看到哪一讲可以精确更新。</p>
+      <details>
+        <summary>课程大纲(17 讲)</summary>
+        <ol>
+          <li>Course Intro + MDPs & Imitation</li><li>Imitation Learning</li><li>Policy Gradients</li><li>Actor-Critic Methods</li><li>Off-Policy Actor-Critic</li><li>Q-Learning</li><li>Offline RL</li><li>Reward Learning</li><li>RL for LLMs: Preference Optimization</li><li>RL for LLMs: Reasoning</li><li>Model-Based RL</li><li>Multi-Task & Goal-Conditioned RL</li><li>Meta-RL</li><li>Hierarchical RL and IL</li><li>RL for Robots: Sim-to-Real Transfer</li><li>RL for Robots: RL for VLAs</li><li>Frontiers</li>
+        </ol>
+      </details>
+    </div>
+
+    <div class="card">
+      <div class="card-top">
+        <div>
+          <h2>DeepLearning.AI · Post-training of LLMs
+            <span class="tags"><span class="tag"><i class="dot" style="background:var(--tag-post)"></i>后训练</span></span>
+          </h2>
+          <div class="meta">短课 · Banghua Zhu · 约 1.5 小时 · 10 课 · <a href="https://www.deeplearning.ai/short-courses/post-training-of-llms/">deeplearning.ai</a></div>
+        </div>
+        <div class="pct">0%<span class="frac">0 / 10 课</span></div>
+      </div>
+      <div class="bar"><i style="width:0%"></i></div>
+      <details>
+        <summary>课程大纲(10 课)</summary>
+        <ol>
+          <li>Introduction</li><li>Introduction to Post-training</li><li>Basics of SFT</li><li>SFT in Practice(代码)</li><li>Basics of DPO</li><li>DPO in Practice(代码)</li><li>Basics of Online RL</li><li>Online RL in Practice(代码)</li><li>Conclusion</li><li>Quiz</li>
+        </ol>
+      </details>
+    </div>
+
+    <div class="card">
+      <div class="card-top">
+        <div>
+          <h2>CS336 · Language Modeling from Scratch
+            <span class="tags"><span class="tag"><i class="dot" style="background:var(--tag-post)"></i>后训练</span><span class="tag"><i class="dot" style="background:var(--tag-found)"></i>基础理论</span></span>
+          </h2>
+          <div class="meta">Stanford · Spring 2026 · 19 讲 · <a href="https://stanford-cs336.github.io/">stanford-cs336.github.io</a></div>
+        </div>
+        <div class="pct">0%<span class="frac">0 / 19 讲</span></div>
+      </div>
+      <div class="bar"><i style="width:0%"></i></div>
+      <details>
+        <summary>课程大纲(19 讲,第 15–16 讲为后训练)</summary>
+        <ol>
+          <li>Overview, Tokenization</li><li>PyTorch(einops)、Resource Accounting</li><li>Architectures, Hyperparameters</li><li>Attention Alternatives & MoE</li><li>GPUs, TPUs</li><li>Kernels, Triton</li><li>Parallelism(上)</li><li>Parallelism(下)</li><li>Scaling Laws(上)</li><li>Inference</li><li>Scaling Laws(下)</li><li>Evaluation</li><li>Data: Sources, Datasets</li><li>Data: Filtering, Dedup, Mixing, Synthetic</li><li>Mid/Post-training(SFT/RLHF)</li><li>Post-training(RLVR)</li><li>Alignment, Multimodality</li><li>Guest: Daniel Selsam</li><li>Guest: Dan Fu</li>
+        </ol>
+      </details>
+    </div>
+
+    <div class="card">
+      <div class="card-top">
+        <div>
+          <h2>CS224N · NLP with Deep Learning
+            <span class="tags"><span class="tag"><i class="dot" style="background:var(--tag-found)"></i>基础理论</span><span class="tag"><i class="dot" style="background:var(--tag-search)"></i>搜索与 Agent</span></span>
+          </h2>
+          <div class="meta">Stanford · Winter 2026 · 19 讲 · <a href="https://web.stanford.edu/class/cs224n/">web.stanford.edu/class/cs224n</a></div>
+        </div>
+        <div class="pct">0%<span class="frac">0 / 19 讲</span></div>
+      </div>
+      <div class="bar"><i style="width:0%"></i></div>
+      <details>
+        <summary>课程大纲(19 讲,第 8 讲后训练、第 10 讲 Agents/RAG)</summary>
+        <ol>
+          <li>History of NLP</li><li>Word Vectors</li><li>Backprop & NN Basics</li><li>Language Models & RNNs</li><li>Transformers</li><li>Final Projects & Practical Tips</li><li>Pretraining(Scaling, Systems, Data)</li><li>Post-training(RLHF, SFT, DPO)</li><li>Efficient Adaptation(Prompting + PEFT)</li><li>Agents, Tool Use, and RAG</li><li>Benchmarking & Evaluation</li><li>Reasoning 1</li><li>Reasoning 2</li><li>Guest: Tokenization & Multilinguality</li><li>Guest: Interpretability</li><li>Social & Broader Impacts</li><li>Guest: Multimodality</li><li>Guest: Tinker and LoRA Without Regret</li><li>Open Questions in NLP 2026</li>
+        </ol>
+      </details>
+    </div>
+
+    <div class="card">
+      <div class="card-top">
+        <div>
+          <h2>Stoody.ai · Agent Course(Agentic Framework Lab)
+            <span class="tags"><span class="tag"><i class="dot" style="background:var(--tag-search)"></i>搜索与 Agent</span></span>
+          </h2>
+          <div class="meta">7 个 Lab · 项目制:Job Hunting Agent · 大纲取自你下载的 syllabus.html(2026-07-11 版)</div>
+        </div>
+        <div class="pct">0%<span class="frac">0 / 7 Lab</span></div>
+      </div>
+      <div class="bar"><i style="width:0%"></i></div>
+      <details>
+        <summary>课程大纲(7 个 Lab)</summary>
+        <ol>
+          <li>API Baseline(单次 Gemini 调用)</li><li>Structured Output 与 State</li><li>Sources、Tools 与 Action Boundary</li><li>Evidence、Skills 与 MCP 概念</li><li>Trace、Eval 与 Debugging</li><li>Thin Multi-Agent Harness</li><li>Product Demo Workspace</li>
+        </ol>
+      </details>
+    </div>
+
+    <div class="card">
+      <div class="card-top">
+        <div>
+          <h2>Stoody.ai · RL Course
+            <span class="tags"><span class="tag"><i class="dot" style="background:var(--tag-post)"></i>后训练</span></span>
+          </h2>
+          <div class="meta">大纲待补充</div>
+        </div>
+        <div class="pct">0%<span class="frac">— 单元待定</span></div>
+      </div>
+      <div class="bar"><i style="width:0%"></i></div>
+      <p class="pending">网上没有查到这门课的公开大纲(stoodyai.com 需登录浏览器访问)。把课程链接或大纲发给 Claude,即可补全此卡片。</p>
+    </div>
+
+    <div class="card">
+      <div class="card-top">
+        <div>
+          <h2>Deep Learning 教科书(Goodfellow, Bengio, Courville)
+            <span class="tags"><span class="tag"><i class="dot" style="background:var(--tag-found)"></i>基础理论</span></span>
+          </h2>
+          <div class="meta">20 章 · <a href="https://www.deeplearningbook.org/">deeplearningbook.org</a></div>
+        </div>
+        <div class="pct">0%<span class="frac">0 / 20 章</span></div>
+      </div>
+      <div class="bar"><i style="width:0%"></i></div>
+      <details>
+        <summary>目录(3 部分 · 20 章)</summary>
+        <ol>
+          <li>Introduction</li>
+          <li class="part">Part I · Applied Math and ML Basics</li>
+          <li value="2">Linear Algebra</li><li>Probability & Information Theory</li><li>Numerical Computation</li><li>Machine Learning Basics</li>
+          <li class="part">Part II · Modern Practical Deep Networks</li>
+          <li value="6">Deep Feedforward Networks</li><li>Regularization</li><li>Optimization for Training</li><li>Convolutional Networks</li><li>Sequence Modeling: RNNs</li><li>Practical Methodology</li><li>Applications</li>
+          <li class="part">Part III · Deep Learning Research</li>
+          <li value="13">Linear Factor Models</li><li>Autoencoders</li><li>Representation Learning</li><li>Structured Probabilistic Models</li><li>Monte Carlo Methods</li><li>Confronting the Partition Function</li><li>Approximate Inference</li><li>Deep Generative Models</li>
+        </ol>
+      </details>
+    </div>
+
+    <div class="card">
+      <div class="card-top">
+        <div>
+          <h2>Instagram AI Search · Anchor Week 材料
+            <span class="tags"><span class="tag"><i class="dot" style="background:var(--tag-search)"></i>搜索与 Agent</span></span>
+          </h2>
+          <div class="meta">来源:Matt 提供(内部材料) · 清单待补充</div>
+        </div>
+        <div class="pct">0%<span class="frac">— 单元待定</span></div>
+      </div>
+      <div class="bar"><i style="width:0%"></i></div>
+      <p class="pending">这批是内部材料,无法从网上拉取。把文件清单(或文件本身)给 Claude,即可拆成可勾选的学习单元。</p>
+    </div>
+
+  </div>
+
+  <footer>
+    数据来源:各课程官网 2026 年最新学期大纲(CS224N Winter 2026、CS224R/CS336 Spring 2026)、deeplearning.ai、deeplearningbook.org,以及你本地的 Agentic Framework Lab syllabus。<br>
+    更新方式:在 Cowork 里告诉 Claude「CS336 看完前 5 讲」这类一句话,Claude 会重新计算并更新这个页面。
+  </footer>
+</div>
+</div>
+</body>
+</html>

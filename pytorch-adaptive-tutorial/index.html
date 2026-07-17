@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<script type="application/json" id="cowork-artifact-meta">
+{
+  "name": "Pytorch Adaptive Tutorial",
+  "schemaVersion": 1,
+  "description": "PyTorch 入门学习应用:张量、autograd、nn.Module、损失/优化器、训练循环五章教程,内置 40 题、5 级难度的自适应测验(答对升难度、答错降难度),含成绩报告与逐题回顾。",
+  "mcpTools": [],
+  "mcpServerNames": []
+}
+</script>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PyTorch 入门 · 教程 + 自适应测验</title>
+<style>
+  :root {
+    --accent: #ee4c2c;
+    --accent-soft: #fdeae5;
+    --bg: #faf9f7;
+    --panel: #ffffff;
+    --ink: #1f2430;
+    --ink-soft: #5b6472;
+    --border: #e6e2dc;
+    --code-bg: #22272e;
+    --code-ink: #d8dee9;
+    --good: #1a9c6b;
+    --good-soft: #e3f6ee;
+    --bad: #d64545;
+    --bad-soft: #fdebeb;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif;
+    background: var(--bg); color: var(--ink); line-height: 1.75;
+  }
+  .layout { display: flex; min-height: 100vh; }
+  /* ---------- sidebar ---------- */
+  .sidebar {
+    width: 250px; flex-shrink: 0; background: var(--panel);
+    border-right: 1px solid var(--border); padding: 24px 14px;
+    position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  }
+  .logo { display: flex; align-items: center; gap: 10px; padding: 0 10px 18px; }
+  .logo .flame {
+    width: 34px; height: 34px; border-radius: 9px; background: var(--accent);
+    color: #fff; display: flex; align-items: center; justify-content: center;
+    font-size: 19px; font-weight: 700;
+  }
+  .logo .t1 { font-weight: 700; font-size: 15px; }
+  .logo .t2 { font-size: 11.5px; color: var(--ink-soft); }
+  .nav-label { font-size: 11px; letter-spacing: .12em; color: var(--ink-soft); padding: 12px 10px 6px; text-transform: uppercase; }
+  .nav-item {
+    display: flex; align-items: center; gap: 9px; width: 100%;
+    padding: 9px 10px; border: none; background: none; border-radius: 9px;
+    font-size: 13.5px; color: var(--ink); cursor: pointer; text-align: left;
+    font-family: inherit;
+  }
+  .nav-item:hover { background: #f3f1ed; }
+  .nav-item.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .nav-item .num {
+    width: 21px; height: 21px; border-radius: 6px; background: #f0ede8;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11.5px; font-weight: 600; color: var(--ink-soft); flex-shrink: 0;
+  }
+  .nav-item.active .num { background: var(--accent); color: #fff; }
+  .nav-item.quiz-link { margin-top: 6px; border: 1.5px dashed var(--border); }
+  .nav-item.quiz-link.active { border-color: var(--accent); }
+  /* ---------- main ---------- */
+  .main { flex: 1; padding: 40px 56px 90px; max-width: 860px; margin: 0 auto; }
+  .view { display: none; }
+  .view.active { display: block; animation: fadein .25s ease; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  h1 { font-size: 27px; margin-bottom: 6px; letter-spacing: -.01em; }
+  .subtitle { color: var(--ink-soft); font-size: 14.5px; margin-bottom: 26px; }
+  h2 { font-size: 19px; margin: 34px 0 12px; padding-top: 8px; }
+  h2::before { content: "§ "; color: var(--accent); }
+  p { margin: 10px 0; font-size: 14.8px; }
+  ul, ol { margin: 10px 0 10px 22px; font-size: 14.8px; }
+  li { margin: 5px 0; }
+  code {
+    font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-size: .88em; background: #efece7; padding: 2px 6px; border-radius: 5px;
+  }
+  pre {
+    background: var(--code-bg); color: var(--code-ink);
+    border-radius: var(--radius); padding: 16px 18px; overflow-x: auto;
+    margin: 14px 0; font-size: 13px; line-height: 1.65;
+  }
+  pre code { background: none; padding: 0; color: inherit; font-size: inherit; }
+  .cm { color: #768390; } /* comment */
+  .kw { color: #f47067; } /* keyword */
+  .st { color: #96d0ff; } /* string */
+  .nb { color: #dcbdfb; } /* number/builtin */
+  .fn { color: #6cb6ff; } /* function */
+  .callout {
+    border-left: 4px solid var(--accent); background: var(--accent-soft);
+    border-radius: 0 10px 10px 0; padding: 12px 16px; margin: 16px 0; font-size: 14px;
+  }
+  .callout b:first-child { color: var(--accent); }
+  .compare {
+    background: #f2f7ff; border-left: 4px solid #4a7dd6;
+    border-radius: 0 10px 10px 0; padding: 12px 16px; margin: 16px 0; font-size: 14px;
+  }
+  .compare b:first-child { color: #3363b8; }
+  table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 13.5px; }
+  th, td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; }
+  th { background: #f3f1ed; }
+  td code { white-space: nowrap; }
+  .pager { display: flex; justify-content: space-between; margin-top: 44px; gap: 12px; }
+  .btn {
+    font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+    border-radius: 10px; padding: 10px 20px; border: 1.5px solid var(--border);
+    background: var(--panel); color: var(--ink); transition: all .15s;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { filter: brightness(1.08); color: #fff; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  /* ---------- quiz ---------- */
+  .quiz-card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 16px; padding: 28px 30px; margin-top: 18px;
+  }
+  .quiz-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
+  .diff-badge { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--ink-soft); }
+  .diff-dots { display: flex; gap: 3px; }
+  .diff-dots span { width: 9px; height: 9px; border-radius: 50%; background: #e4e0da; }
+  .diff-dots span.on { background: var(--accent); }
+  .q-progress { font-size: 13px; color: var(--ink-soft); }
+  .progress-bar { height: 6px; background: #eee9e2; border-radius: 3px; margin-bottom: 22px; overflow: hidden; }
+  .progress-bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; transition: width .3s; }
+  .q-text { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+  .q-topic { display: inline-block; font-size: 11.5px; background: #f0ede8; color: var(--ink-soft); border-radius: 20px; padding: 2px 10px; margin-bottom: 10px; }
+  .opts { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+  .opt {
+    text-align: left; font-family: inherit; font-size: 14px; cursor: pointer;
+    border: 1.5px solid var(--border); background: #fdfcfb; border-radius: 10px;
+    padding: 12px 15px; transition: all .12s; line-height: 1.55; color: var(--ink);
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: #fff; }
+  .opt .key { font-weight: 700; color: var(--ink-soft); margin-right: 8px; }
+  .opt.correct { border-color: var(--good); background: var(--good-soft); }
+  .opt.wrong { border-color: var(--bad); background: var(--bad-soft); }
+  .opt:disabled { cursor: default; }
+  .opt code { background: #efece7; }
+  .feedback { margin-top: 18px; border-radius: 10px; padding: 13px 16px; font-size: 14px; display: none; }
+  .feedback.show { display: block; }
+  .feedback.good { background: var(--good-soft); border-left: 4px solid var(--good); }
+  .feedback.bad { background: var(--bad-soft); border-left: 4px solid var(--bad); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--good); }
+  .feedback.bad .verdict { color: var(--bad); }
+  .diff-note { font-size: 12.5px; color: var(--ink-soft); margin-top: 8px; }
+  .quiz-actions { display: flex; justify-content: flex-end; margin-top: 20px; }
+  /* result */
+  .score-hero { text-align: center; padding: 10px 0 4px; }
+  .score-hero .big { font-size: 46px; font-weight: 800; color: var(--accent); }
+  .score-hero .lbl { color: var(--ink-soft); font-size: 14px; }
+  .stat-row { display: flex; gap: 14px; margin: 22px 0; flex-wrap: wrap; }
+  .stat {
+    flex: 1; min-width: 140px; background: #fdfcfb; border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px 16px; text-align: center;
+  }
+  .stat .v { font-size: 22px; font-weight: 700; }
+  .stat .k { font-size: 12.5px; color: var(--ink-soft); }
+  .topic-list { margin-top: 8px; }
+  .topic-item { display: flex; align-items: center; gap: 12px; margin: 8px 0; font-size: 13.5px; }
+  .topic-item .name { width: 130px; flex-shrink: 0; }
+  .topic-item .bar { flex: 1; height: 8px; background: #eee9e2; border-radius: 4px; overflow: hidden; }
+  .topic-item .bar i { display: block; height: 100%; background: var(--good); border-radius: 4px; }
+  .topic-item .pct { width: 64px; text-align: right; color: var(--ink-soft); font-size: 12.5px; }
+  .traj { margin: 18px 0 6px; }
+  .traj svg { width: 100%; height: 110px; }
+  .review-toggle { margin-top: 18px; }
+  .review-item { border: 1px solid var(--border); border-radius: 10px; padding: 12px 15px; margin: 10px 0; font-size: 13.5px; }
+  .review-item.good { border-left: 4px solid var(--good); }
+  .review-item.bad { border-left: 4px solid var(--bad); }
+  .hidden { display: none !important; }
+  @media (max-width: 800px) {
+    .layout { flex-direction: column; }
+    .sidebar { width: 100%; height: auto; position: static; display: flex; flex-wrap: wrap; gap: 4px; padding: 12px; }
+    .logo { width: 100%; padding-bottom: 8px; }
+    .nav-label { display: none; }
+    .nav-item { width: auto; }
+    .main { padding: 24px 20px 60px; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="flame">🔥</div>
+      <div><div class="t1">PyTorch 入门</div><div class="t2">教程 + 自适应测验</div></div>
+    </div>
+    <div class="nav-label">教程</div>
+    <button class="nav-item active" data-view="ch1"><span class="num">1</span>张量 Tensor</button>
+    <button class="nav-item" data-view="ch2"><span class="num">2</span>Autograd 自动求导</button>
+    <button class="nav-item" data-view="ch3"><span class="num">3</span>nn.Module 搭建网络</button>
+    <button class="nav-item" data-view="ch4"><span class="num">4</span>损失函数与优化器</button>
+    <button class="nav-item" data-view="ch5"><span class="num">5</span>完整训练循环</button>
+    <div class="nav-label">练习</div>
+    <button class="nav-item quiz-link" data-view="quiz"><span class="num">✎</span>自适应测验</button>
+  </aside>
+
+  <main class="main">
+
+  <!-- ============ 第 1 章:张量 ============ -->
+  <section class="view active" id="view-ch1">
+    <h1>1 · 张量 Tensor</h1>
+    <p class="subtitle">PyTorch 的基本数据结构 —— 一个可以在 GPU 上运行、并且能记住自己"来历"的多维数组。</p>
+
+    <div class="compare"><b>对照:</b>如果你熟悉 NumPy,可以把 <code>torch.Tensor</code> 理解为 <code>np.ndarray</code> 的超集:API 高度相似,但多了两项关键能力 —— ① 可以搬到 GPU 上计算;② 可以参与自动求导(autograd)。</div>
+
+    <h2>创建张量</h2>
+<pre><code><span class="kw">import</span> torch
+<span class="kw">import</span> numpy <span class="kw">as</span> np
+
+a = torch.<span class="fn">tensor</span>([[<span class="nb">1</span>, <span class="nb">2</span>], [<span class="nb">3</span>, <span class="nb">4</span>]])      <span class="cm"># 从 Python 列表创建,dtype 推断为 int64</span>
+b = torch.<span class="fn">tensor</span>([<span class="nb">1.0</span>, <span class="nb">2.0</span>])            <span class="cm"># 含小数 → float32(注意:不是 float64!)</span>
+z = torch.<span class="fn">zeros</span>(<span class="nb">2</span>, <span class="nb">3</span>)                  <span class="cm"># 2×3 全 0</span>
+o = torch.<span class="fn">ones_like</span>(a)                 <span class="cm"># 形状同 a 的全 1</span>
+r = torch.<span class="fn">randn</span>(<span class="nb">3</span>, <span class="nb">4</span>)                  <span class="cm"># 标准正态分布随机数</span>
+n = torch.<span class="fn">from_numpy</span>(np.<span class="fn">array</span>([<span class="nb">1</span>, <span class="nb">2</span>])) <span class="cm"># 与 NumPy 数组【共享内存】,改一个另一个也变</span></code></pre>
+
+    <div class="callout"><b>易错点:</b>NumPy 默认浮点是 <code>float64</code>,而 PyTorch 默认是 <code>float32</code>(深度学习几乎总用 float32)。用 <code>torch.from_numpy</code> 转换来的张量会保留 float64,常需 <code>.float()</code> 转一下,否则和模型权重的 dtype 不匹配会报错。</div>
+
+    <h2>形状与常用属性</h2>
+<pre><code>x = torch.<span class="fn">randn</span>(<span class="nb">2</span>, <span class="nb">3</span>, <span class="nb">4</span>)
+x.shape        <span class="cm"># torch.Size([2, 3, 4]),等价于 x.size()</span>
+x.dtype        <span class="cm"># torch.float32</span>
+x.device       <span class="cm"># cpu 或 cuda:0 / mps</span>
+x.ndim         <span class="cm"># 3(维度数)</span>
+x.<span class="fn">numel</span>()      <span class="cm"># 24(元素总数)</span>
+
+s = torch.<span class="fn">tensor</span>(<span class="nb">3.14</span>)
+s.<span class="fn">item</span>()       <span class="cm"># 3.14 —— 把"单元素张量"取出为 Python 数值(常用于取 loss 值)</span></code></pre>
+
+    <h2>变形:view / reshape / squeeze / unsqueeze</h2>
+<pre><code>x = torch.<span class="fn">arange</span>(<span class="nb">12</span>)        <span class="cm"># [0, 1, ..., 11]</span>
+x.<span class="fn">view</span>(<span class="nb">3</span>, <span class="nb">4</span>)               <span class="cm"># 变形为 3×4(不复制数据,要求内存连续)</span>
+x.<span class="fn">view</span>(-<span class="nb">1</span>, <span class="nb">6</span>)              <span class="cm"># -1 表示"自动推断"→ 2×6</span>
+x.<span class="fn">reshape</span>(<span class="nb">3</span>, <span class="nb">4</span>)            <span class="cm"># 同 view,但遇到不连续内存会自动复制,更稳妥</span>
+
+y = torch.<span class="fn">randn</span>(<span class="nb">3</span>, <span class="nb">1</span>, <span class="nb">4</span>)
+y.<span class="fn">squeeze</span>(<span class="nb">1</span>).shape          <span class="cm"># [3, 4] —— 去掉大小为 1 的维度</span>
+y.<span class="fn">unsqueeze</span>(<span class="nb">0</span>).shape        <span class="cm"># [1, 3, 1, 4] —— 插入一个新维度(常用于加 batch 维)</span></code></pre>
+
+    <div class="callout"><b>view vs reshape:</b><code>view</code> 只在张量内存连续(contiguous)时可用,否则抛错;<code>reshape</code> 在必要时会悄悄复制数据。经过 <code>transpose</code>/<code>permute</code> 之后的张量往往不连续,此时要么用 <code>reshape</code>,要么先 <code>.contiguous()</code> 再 <code>view</code>。</div>
+
+    <h2>运算与广播</h2>
+<pre><code>a = torch.<span class="fn">randn</span>(<span class="nb">3</span>, <span class="nb">1</span>)
+b = torch.<span class="fn">randn</span>(<span class="nb">1</span>, <span class="nb">4</span>)
+(a + b).shape          <span class="cm"># [3, 4] —— 广播规则与 NumPy 完全相同</span>
+
+x = torch.<span class="fn">randn</span>(<span class="nb">2</span>, <span class="nb">3</span>)
+w = torch.<span class="fn">randn</span>(<span class="nb">3</span>, <span class="nb">4</span>)
+x * x                  <span class="cm"># 逐元素乘(要求形状可广播)</span>
+x @ w                  <span class="cm"># 矩阵乘,等价 torch.matmul(x, w) → [2, 4]</span>
+
+x.<span class="fn">add_</span>(<span class="nb">1</span>)              <span class="cm"># 带下划线后缀 = 原地(in-place)操作,直接修改 x 本身</span></code></pre>
+
+    <h2>设备:CPU 与 GPU</h2>
+<pre><code>device = <span class="st">"cuda"</span> <span class="kw">if</span> torch.cuda.<span class="fn">is_available</span>() <span class="kw">else</span> <span class="st">"cpu"</span>
+x = torch.<span class="fn">randn</span>(<span class="nb">2</span>, <span class="nb">3</span>).<span class="fn">to</span>(device)   <span class="cm"># 把张量搬到 GPU(Mac 上可用 "mps")</span>
+model.<span class="fn">to</span>(device)                    <span class="cm"># 模型也要搬;两者必须在同一设备上,否则报错</span></code></pre>
+
+    <div class="compare"><b>对照 TensorFlow:</b>TF 会自动把运算放到可见 GPU 上,而 PyTorch 要求你<b>显式</b>调用 <code>.to(device)</code> 移动张量和模型。这是 PyTorch"显式优于隐式"哲学的体现,初学时最常见的报错之一就是"两个张量不在同一设备"。</div>
+
+    <div class="pager">
+      <span></span>
+      <button class="btn primary" data-goto="ch2">下一章:Autograd →</button>
+    </div>
+  </section>
+
+  <!-- ============ 第 2 章:Autograd ============ -->
+  <section class="view" id="view-ch2">
+    <h1>2 · Autograd 自动求导</h1>
+    <p class="subtitle">PyTorch 的核心魔法:记录你对张量做过的运算,然后自动算出梯度。</p>
+
+    <p>训练神经网络 = 用梯度下降调整参数。手工推导每个参数的梯度不现实,autograd 会在你做前向计算时<b>动态记录一张计算图</b>,调用 <code>backward()</code> 时沿图反向传播,把梯度写进每个参数的 <code>.grad</code> 里。</p>
+
+<pre><code>x = torch.<span class="fn">tensor</span>(<span class="nb">3.0</span>, requires_grad=<span class="kw">True</span>)  <span class="cm"># 声明:请追踪对 x 的运算</span>
+y = x ** <span class="nb">2</span> + <span class="nb">4</span> * x                          <span class="cm"># y = x² + 4x(建图)</span>
+y.<span class="fn">backward</span>()                                <span class="cm"># 反向传播,计算 dy/dx</span>
+<span class="fn">print</span>(x.grad)                               <span class="cm"># dy/dx = 2x + 4 = 10.0</span></code></pre>
+
+    <div class="compare"><b>对照 TensorFlow:</b>TF 1.x 是"先定义静态图、再喂数据";TF 2.x 用 <code>GradientTape</code> 显式录制。PyTorch 则是<b>动态图(define-by-run)</b>:图在每次前向时即时构建,用完即弃,所以可以随意写 Python 的 if/for,调试像普通代码一样直观。</div>
+
+    <h2>三个关键事实</h2>
+    <ul>
+      <li><b>梯度是累加的。</b>再调一次 <code>backward()</code>,新梯度会<b>加到</b> <code>.grad</code> 上,而不是覆盖。这就是训练循环里每步都要 <code>optimizer.zero_grad()</code> 的原因。</li>
+      <li><b>backward 默认只能对标量调用。</b>loss 是标量所以没问题;若对向量调用,需传入 <code>gradient</code> 参数指定权重。</li>
+      <li><b>计算图用完即销毁。</b>同一张图上第二次 <code>backward()</code> 会报错,除非第一次传了 <code>retain_graph=True</code>(很少需要)。</li>
+    </ul>
+
+    <h2>不需要梯度的时候</h2>
+<pre><code><span class="cm"># 推理 / 评估阶段:不建图,省内存、加速</span>
+<span class="kw">with</span> torch.<span class="fn">no_grad</span>():
+    pred = model(x_test)
+
+<span class="cm"># 从图中"摘下"某个张量:返回一个不带梯度追踪的新张量(共享数据)</span>
+detached = y.<span class="fn">detach</span>()
+
+<span class="cm"># 取 loss 数值用于打印(item() 已隐式脱离计算图)</span>
+loss_value = loss.<span class="fn">item</span>()</code></pre>
+
+    <div class="callout"><b>区分:</b><code>torch.no_grad()</code> 是一个<b>上下文</b>,让其中所有运算都不建图;<code>detach()</code> 是对<b>单个张量</b>操作,把它从已有的图中分离出来。评估模型用前者;想把中间结果当常数继续参与计算用后者。</div>
+
+    <h2>叶子张量与 .grad</h2>
+    <p>只有<b>叶子张量</b>(用户直接创建、<code>requires_grad=True</code> 的张量,比如模型参数)在 backward 后默认保留 <code>.grad</code>;中间结果的梯度算完即丢,若想查看需先调用 <code>.retain_grad()</code>。</p>
+
+    <div class="pager">
+      <button class="btn" data-goto="ch1">← 上一章</button>
+      <button class="btn primary" data-goto="ch3">下一章:nn.Module →</button>
+    </div>
+  </section>
+
+  <!-- ============ 第 3 章:nn.Module ============ -->
+  <section class="view" id="view-ch3">
+    <h1>3 · nn.Module 搭建网络</h1>
+    <p class="subtitle">所有神经网络组件的基类:管理参数、组织层次、定义前向计算。</p>
+
+    <p>在 PyTorch 里定义模型的标准姿势是:继承 <code>nn.Module</code>,在 <code>__init__</code> 里声明<b>含参数的层</b>,在 <code>forward</code> 里写<b>数据如何流过这些层</b>。</p>
+
+<pre><code><span class="kw">import</span> torch.nn <span class="kw">as</span> nn
+<span class="kw">import</span> torch.nn.functional <span class="kw">as</span> F
+
+<span class="kw">class</span> <span class="fn">MLP</span>(nn.Module):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self):
+        <span class="fn">super</span>().<span class="fn">__init__</span>()               <span class="cm"># 必须先调用父类构造</span>
+        self.fc1 = nn.<span class="fn">Linear</span>(<span class="nb">784</span>, <span class="nb">128</span>)   <span class="cm"># 输入 784 维 → 输出 128 维</span>
+        self.fc2 = nn.<span class="fn">Linear</span>(<span class="nb">128</span>, <span class="nb">10</span>)
+        self.dropout = nn.<span class="fn">Dropout</span>(<span class="nb">0.2</span>)
+
+    <span class="kw">def</span> <span class="fn">forward</span>(self, x):                <span class="cm"># 只需定义前向;反向由 autograd 自动完成</span>
+        x = F.<span class="fn">relu</span>(self.fc1(x))
+        x = self.dropout(x)
+        <span class="kw">return</span> self.fc2(x)               <span class="cm"># 输出 logits,不加 softmax(见第 4 章)</span>
+
+model = <span class="fn">MLP</span>()
+out = model(x)   <span class="cm"># 调用模型 = 调用 forward(不要直接写 model.forward(x))</span></code></pre>
+
+    <div class="callout"><b>为什么层要放在 __init__ 里?</b>把 <code>nn.Linear</code> 等赋值为 <code>self.xxx</code> 时,<code>nn.Module</code> 会自动<b>注册</b>它的参数。这样 <code>model.parameters()</code> 才能把所有权重交给优化器,<code>model.to(device)</code> 才能把它们一起搬到 GPU。在 <code>forward</code> 里临时 new 一个层,参数就不会被注册、不会被训练。</div>
+
+    <h2>nn.Linear 的形状约定</h2>
+<pre><code>layer = nn.<span class="fn">Linear</span>(in_features=<span class="nb">10</span>, out_features=<span class="nb">5</span>)
+layer.weight.shape    <span class="cm"># [5, 10] —— 注意是 (out, in),计算为 y = x Wᵀ + b</span>
+layer.bias.shape      <span class="cm"># [5]</span>
+
+x = torch.<span class="fn">randn</span>(<span class="nb">32</span>, <span class="nb">10</span>)   <span class="cm"># batch 维在前:32 个样本</span>
+layer(x).shape           <span class="cm"># [32, 5]</span></code></pre>
+
+    <h2>快捷写法:nn.Sequential</h2>
+<pre><code>model = nn.<span class="fn">Sequential</span>(
+    nn.<span class="fn">Linear</span>(<span class="nb">784</span>, <span class="nb">128</span>),
+    nn.<span class="fn">ReLU</span>(),
+    nn.<span class="fn">Linear</span>(<span class="nb">128</span>, <span class="nb">10</span>),
+)   <span class="cm"># 数据按顺序依次流过,适合简单"一条道走到黑"的结构</span></code></pre>
+
+    <h2>train / eval 模式</h2>
+<pre><code>model.<span class="fn">train</span>()   <span class="cm"># 训练模式:Dropout 随机丢弃、BatchNorm 用当前 batch 统计量</span>
+model.<span class="fn">eval</span>()    <span class="cm"># 评估模式:Dropout 关闭、BatchNorm 用训练期累积的滑动均值/方差</span></code></pre>
+    <div class="callout"><b>易错点:</b><code>model.eval()</code> 只切换层的行为,<b>并不会</b>关闭梯度计算;评估时应同时使用 <code>with torch.no_grad():</code>。二者作用不同、常常搭配出现。</div>
+
+    <h2>参数与保存</h2>
+<pre><code><span class="kw">for</span> p <span class="kw">in</span> model.<span class="fn">parameters</span>(): ...        <span class="cm"># 可训练参数的迭代器(交给优化器用)</span>
+model.<span class="fn">state_dict</span>()                       <span class="cm"># {参数名: 张量} 的有序字典(还含 buffer)</span>
+torch.<span class="fn">save</span>(model.<span class="fn">state_dict</span>(), <span class="st">"m.pt"</span>)  <span class="cm"># 推荐:只存权重,不存类定义</span>
+model.<span class="fn">load_state_dict</span>(torch.<span class="fn">load</span>(<span class="st">"m.pt"</span>))</code></pre>
+
+    <div class="pager">
+      <button class="btn" data-goto="ch2">← 上一章</button>
+      <button class="btn primary" data-goto="ch4">下一章:损失与优化器 →</button>
+    </div>
+  </section>
+
+  <!-- ============ 第 4 章:损失与优化器 ============ -->
+  <section class="view" id="view-ch4">
+    <h1>4 · 损失函数与优化器</h1>
+    <p class="subtitle">损失衡量"错得多离谱",优化器决定"参数往哪儿调"。</p>
+
+    <h2>常用损失函数</h2>
+    <table>
+      <tr><th>任务</th><th>损失函数</th><th>模型输出</th><th>标签格式</th></tr>
+      <tr><td>回归</td><td><code>nn.MSELoss()</code></td><td>连续值</td><td>连续值,形状同输出</td></tr>
+      <tr><td>多分类</td><td><code>nn.CrossEntropyLoss()</code></td><td><b>原始 logits</b>(N, C)</td><td>类别<b>下标</b>(N,),不是 one-hot</td></tr>
+      <tr><td>二分类</td><td><code>nn.BCEWithLogitsLoss()</code></td><td><b>原始 logits</b></td><td>0/1 浮点</td></tr>
+    </table>
+
+    <div class="callout"><b>最高频的坑:</b><code>CrossEntropyLoss</code> 内部已经包含了 <code>log_softmax</code>。如果你在模型末尾自己加了 softmax,相当于做了两次,不会直接报错,但梯度变小、数值不稳、训练明显变差。<b>模型输出裸 logits 就好。</b>同理它的 target 是类别下标(如 <code>tensor([2, 0, 1])</code>),不是 one-hot 向量。</div>
+
+    <h2>优化器</h2>
+<pre><code><span class="kw">import</span> torch.optim <span class="kw">as</span> optim
+
+optimizer = optim.<span class="fn">SGD</span>(model.<span class="fn">parameters</span>(), lr=<span class="nb">0.01</span>, momentum=<span class="nb">0.9</span>)
+optimizer = optim.<span class="fn">Adam</span>(model.<span class="fn">parameters</span>(), lr=<span class="nb">1e-3</span>)   <span class="cm"># 最常用的默认选择</span></code></pre>
+    <p>优化器在构造时拿到 <code>model.parameters()</code> 的引用,之后每次 <code>step()</code> 就按各参数的 <code>.grad</code> 更新它们。</p>
+
+    <h2>铁三角:zero_grad → backward → step</h2>
+<pre><code>optimizer.<span class="fn">zero_grad</span>()   <span class="cm"># ① 清空上一步残留的梯度(否则会累加!)</span>
+loss.<span class="fn">backward</span>()          <span class="cm"># ② 反向传播,计算所有参数的 .grad</span>
+optimizer.<span class="fn">step</span>()         <span class="cm"># ③ 按梯度更新参数</span></code></pre>
+
+    <div class="callout"><b>忘记 zero_grad 会怎样?</b>梯度会一步步累加,相当于方向越来越"陈旧"且幅度失控,典型症状是 loss 剧烈震荡或不收敛。(反过来,<b>故意</b>隔几步才清零 + <code>loss / k</code>,就是"梯度累积"技巧,用小显存模拟大 batch。)</div>
+
+    <div class="compare"><b>对照 TensorFlow/Keras:</b><code>model.compile(optimizer, loss)</code> + <code>fit()</code> 把这三步藏了起来;PyTorch 让你显式写出来。代价是多打三行字,好处是任何环节都可以插手 —— 梯度裁剪、累积、自定义更新规则都一目了然。</div>
+
+    <div class="pager">
+      <button class="btn" data-goto="ch3">← 上一章</button>
+      <button class="btn primary" data-goto="ch5">下一章:训练循环 →</button>
+    </div>
+  </section>
+
+  <!-- ============ 第 5 章:训练循环 ============ -->
+  <section class="view" id="view-ch5">
+    <h1>5 · 完整训练循环</h1>
+    <p class="subtitle">把前四章拼起来:数据 → 前向 → 损失 → 反向 → 更新。</p>
+
+    <h2>Dataset 与 DataLoader</h2>
+<pre><code><span class="kw">from</span> torch.utils.data <span class="kw">import</span> TensorDataset, DataLoader
+
+dataset = <span class="fn">TensorDataset</span>(X, y)                 <span class="cm"># 任何实现 __len__ / __getitem__ 的对象都行</span>
+loader = <span class="fn">DataLoader</span>(dataset, batch_size=<span class="nb">64</span>,
+                    shuffle=<span class="kw">True</span>)             <span class="cm"># 训练集要 shuffle,打破样本顺序相关性</span></code></pre>
+
+    <h2>标准训练循环(背下来这个骨架)</h2>
+<pre><code>device = <span class="st">"cuda"</span> <span class="kw">if</span> torch.cuda.<span class="fn">is_available</span>() <span class="kw">else</span> <span class="st">"cpu"</span>
+model = <span class="fn">MLP</span>().<span class="fn">to</span>(device)
+criterion = nn.<span class="fn">CrossEntropyLoss</span>()
+optimizer = optim.<span class="fn">Adam</span>(model.<span class="fn">parameters</span>(), lr=<span class="nb">1e-3</span>)
+
+<span class="kw">for</span> epoch <span class="kw">in</span> <span class="fn">range</span>(<span class="nb">10</span>):
+    model.<span class="fn">train</span>()                            <span class="cm"># 切训练模式</span>
+    <span class="kw">for</span> xb, yb <span class="kw">in</span> loader:
+        xb, yb = xb.<span class="fn">to</span>(device), yb.<span class="fn">to</span>(device)
+        logits = model(xb)                   <span class="cm"># ① 前向</span>
+        loss = <span class="fn">criterion</span>(logits, yb)         <span class="cm"># ② 损失</span>
+        optimizer.<span class="fn">zero_grad</span>()                <span class="cm"># ③ 清梯度</span>
+        loss.<span class="fn">backward</span>()                      <span class="cm"># ④ 反向</span>
+        optimizer.<span class="fn">step</span>()                     <span class="cm"># ⑤ 更新</span>
+
+    model.<span class="fn">eval</span>()                             <span class="cm"># 每个 epoch 结束后评估</span>
+    correct = <span class="nb">0</span>
+    <span class="kw">with</span> torch.<span class="fn">no_grad</span>():                    <span class="cm"># 评估不建计算图</span>
+        <span class="kw">for</span> xb, yb <span class="kw">in</span> val_loader:
+            xb, yb = xb.<span class="fn">to</span>(device), yb.<span class="fn">to</span>(device)
+            pred = model(xb).<span class="fn">argmax</span>(dim=<span class="nb">1</span>)   <span class="cm"># logits 最大的类即预测</span>
+            correct += (pred == yb).<span class="fn">sum</span>().<span class="fn">item</span>()
+    <span class="fn">print</span>(<span class="st">f"epoch {epoch}: loss={loss.item():.4f}, acc={correct/len(val_set):.2%}"</span>)</code></pre>
+
+    <h2>自查清单(新手 bug 排行榜)</h2>
+    <ol>
+      <li>忘了 <code>optimizer.zero_grad()</code> → 梯度累加,loss 震荡。</li>
+      <li>忘了 <code>model.train()</code> / <code>model.eval()</code> 切换 → Dropout/BatchNorm 行为错误,评估分数异常。</li>
+      <li>模型和数据不在同一设备 → <code>Expected all tensors to be on the same device</code>。</li>
+      <li>给 <code>CrossEntropyLoss</code> 喂了 softmax 后的概率或 one-hot 标签 → 训练慢、效果差。</li>
+      <li>用 <code>loss</code>(张量)而不是 <code>loss.item()</code> 做累计统计 → 计算图被一直引用,内存越吃越多。</li>
+    </ol>
+
+    <div class="callout"><b>接下来:</b>点击左侧「自适应测验」检验一下 —— 答对难度上升、答错难度下降,看看你能爬到第几级!</div>
+
+    <div class="pager">
+      <button class="btn" data-goto="ch4">← 上一章</button>
+      <button class="btn primary" data-goto="quiz">去测验 ✎</button>
+    </div>
+  </section>
+
+  <!-- ============ 测验 ============ -->
+  <section class="view" id="view-quiz">
+    <h1>自适应测验</h1>
+    <p class="subtitle">共 12 题 · 难度 5 级 · 答对下一题更难,答错下一题更简单。</p>
+
+    <!-- 开始页 -->
+    <div class="quiz-card" id="quiz-start">
+      <p style="font-size:15px"><b>规则:</b></p>
+      <ul>
+        <li>题库约 40 题,覆盖张量、autograd、nn.Module、损失/优化器、训练循环五个主题。</li>
+        <li>难度从 ●○○○○(入门)到 ●●●●●(进阶),起始难度为 2 级(考虑到你有 NumPy/TF 基础)。</li>
+        <li><b>答对 → 下一题升 1 级;答错 → 下一题降 1 级。</b>每题作答后都有讲解。</li>
+        <li>结束后会给出总分、各主题正确率和你的难度轨迹。</li>
+      </ul>
+      <div class="quiz-actions"><button class="btn primary" id="btn-start">开始测验 →</button></div>
+    </div>
+
+    <!-- 答题页 -->
+    <div class="quiz-card hidden" id="quiz-play">
+      <div class="quiz-meta">
+        <div class="diff-badge">难度 <span class="diff-dots" id="diff-dots"><span></span><span></span><span></span><span></span><span></span></span> <span id="diff-name"></span></div>
+        <div class="q-progress"><span id="q-num"></span> · 已答对 <span id="q-score">0</span> 题</div>
+      </div>
+      <div class="progress-bar"><i id="q-bar" style="width:0%"></i></div>
+      <span class="q-topic" id="q-topic"></span>
+      <div class="q-text" id="q-text"></div>
+      <pre id="q-code" class="hidden"><code id="q-code-inner"></code></pre>
+      <div class="opts" id="q-opts"></div>
+      <div class="feedback" id="q-feedback">
+        <div class="verdict" id="fb-verdict"></div>
+        <div id="fb-exp"></div>
+        <div class="diff-note" id="fb-diff"></div>
+      </div>
+      <div class="quiz-actions"><button class="btn primary hidden" id="btn-next">下一题 →</button></div>
+    </div>
+
+    <!-- 结果页 -->
+    <div class="quiz-card hidden" id="quiz-result">
+      <div class="score-hero">
+        <div class="big"><span id="r-score"></span>/<span id="r-total"></span></div>
+        <div class="lbl" id="r-comment"></div>
+      </div>
+      <div class="stat-row">
+        <div class="stat"><div class="v" id="r-acc"></div><div class="k">正确率</div></div>
+        <div class="stat"><div class="v" id="r-peak"></div><div class="k">达到的最高难度</div></div>
+        <div class="stat"><div class="v" id="r-final"></div><div class="k">结束时难度</div></div>
+      </div>
+      <h2 style="margin-top:10px">难度轨迹</h2>
+      <div class="traj" id="r-traj"></div>
+      <h2>各主题表现</h2>
+      <div class="topic-list" id="r-topics"></div>
+      <div class="review-toggle"><button class="btn" id="btn-review">查看逐题回顾</button></div>
+      <div id="r-review" class="hidden"></div>
+      <div class="quiz-actions" style="margin-top:22px">
+        <button class="btn" data-goto="ch1" style="margin-right:10px">回到教程</button>
+        <button class="btn primary" id="btn-restart">再来一轮 ↻</button>
+      </div>
+    </div>
+  </section>
+
+  </main>
+</div>
+<script>
+/* ================= 导航 ================= */
+function show(viewId) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + viewId).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n =>
+    n.classList.toggle('active', n.dataset.view === viewId));
+  window.scrollTo({ top: 0 });
+}
+document.querySelectorAll('.nav-item').forEach(n =>
+  n.addEventListener('click', () => show(n.dataset.view)));
+document.addEventListener('click', e => {
+  const g = e.target.closest('[data-goto]');
+  if (g) show(g.dataset.goto);
+});
+
+/* ================= 题库 =================
+   lv: 难度 1-5 | topic: 主题 | q: 题干(可含 HTML)
+   code: 可选代码块(纯文本) | opts: 选项 | ans: 正确下标 | exp: 讲解 */
+const BANK = [
+/* ---------- 难度 1 ---------- */
+{lv:1, topic:'张量', q:'<code>torch.tensor([1, 2, 3])</code> 创建的张量,默认 dtype 是?',
+ opts:['<code>float32</code>','<code>int64</code>','<code>int32</code>','<code>float64</code>'], ans:1,
+ exp:'全是整数的 Python 列表推断为 int64;含小数则推断为 float32(不是 float64,这是与 NumPy 的一个差异)。'},
+{lv:1, topic:'张量', q:'相比 NumPy 数组,PyTorch 张量额外提供的两项核心能力是?',
+ opts:['更快的 CPU 运算和更省内存','GPU 加速和自动求导','内置绘图和数据读取','静态类型检查和编译优化'], ans:1,
+ exp:'API 与 NumPy 高度相似,但张量可以 .to("cuda") 搬上 GPU,且可通过 autograd 自动计算梯度——这两点是深度学习的刚需。'},
+{lv:1, topic:'张量', q:'<code>torch.zeros(2, 3)</code> 的形状是?',
+ opts:['<code>[3, 2]</code>','<code>[2, 3]</code>','<code>[6]</code>','<code>[2, 3, 1]</code>'], ans:1,
+ exp:'参数依次是各维大小:2 行 3 列。可用 x.shape 或 x.size() 查看。'},
+{lv:1, topic:'张量', q:'想把只含一个元素的张量(比如 loss)取出为普通 Python 数值,应该用?',
+ opts:['<code>float(loss.data)</code>','<code>loss.value</code>','<code>loss.item()</code>','<code>loss.numpy()</code>'], ans:2,
+ exp:'.item() 是标准做法,常用于打印/记录 loss。它返回 Python 数值,且不带计算图引用。'},
+{lv:1, topic:'Autograd', q:'创建张量时设置 <code>requires_grad=True</code> 的作用是?',
+ opts:['把张量变成常量,禁止修改','让 PyTorch 追踪对它的运算,以便之后求梯度','自动把张量搬到 GPU','强制使用双精度提高精度'], ans:1,
+ exp:'requires_grad=True 告诉 autograd:请记录以这个张量为起点的计算图,调用 backward() 时把梯度写进它的 .grad。模型参数默认就是 True。'},
+{lv:1, topic:'nn.Module', q:'继承 <code>nn.Module</code> 自定义模型时,必须实现哪个方法来定义前向计算?',
+ opts:['<code>backward</code>','<code>call</code>','<code>forward</code>','<code>run</code>'], ans:2,
+ exp:'只需定义 forward;反向传播由 autograd 自动完成,不需要(也不应该)手写 backward。'},
+{lv:1, topic:'损失/优化器', q:'训练循环中 <code>optimizer.step()</code> 的作用是?',
+ opts:['计算损失函数的值','进行反向传播计算梯度','按各参数的 .grad 更新参数','清空所有参数的梯度'], ans:2,
+ exp:'step() 读取每个参数的 .grad,按优化算法(SGD、Adam 等)更新参数值。计算梯度是 loss.backward() 的事。'},
+{lv:1, topic:'训练循环', q:'写好模型后,执行 <code>out = model(x)</code> 实际上调用的是?',
+ opts:['模型的 <code>forward</code> 方法(经由 <code>__call__</code>)','模型的 <code>__init__</code> 方法','模型的 <code>backward</code> 方法','<code>torch.run(model, x)</code>'], ans:0,
+ exp:'model(x) 触发 nn.Module 的 __call__,它在调用你的 forward 前后还处理 hook 等逻辑——所以永远写 model(x),不要直接 model.forward(x)。'},
+
+/* ---------- 难度 2 ---------- */
+{lv:2, topic:'张量', q:'<code>x = torch.arange(6)</code>,那么 <code>x.view(2, -1)</code> 的形状是?',
+ opts:['<code>[2, 4]</code>','<code>[2, 3]</code>','<code>[3, 2]</code>','报错,view 不接受 -1'], ans:1,
+ exp:'-1 表示"由其余维度自动推断":6 个元素 ÷ 2 行 = 3 列。每次 view 只能有一个 -1。'},
+{lv:2, topic:'张量', q:'用 <code>torch.from_numpy(arr)</code> 创建的张量,与原 NumPy 数组的关系是?',
+ opts:['完全独立的副本','共享内存,改其一另一个也变','只读视图,不能修改','自动搬到 GPU 上'], ans:1,
+ exp:'from_numpy(和 tensor.numpy())是零拷贝的,两者共享同一块内存。想要独立副本用 torch.tensor(arr) 或 .clone()。'},
+{lv:2, topic:'张量', q:'形状 <code>(3, 1)</code> 的张量与形状 <code>(1, 4)</code> 的张量相加,结果形状是?',
+ opts:['报错,形状不匹配','<code>(3, 4)</code>','<code>(3, 1)</code>','<code>(4, 3)</code>'], ans:1,
+ exp:'广播规则(与 NumPy 相同):大小为 1 的维度被"复制拉伸"去匹配对方,(3,1)+(1,4) → (3,4)。'},
+{lv:2, topic:'张量', q:'<code>x.add_(1)</code> 中方法名末尾的下划线表示?',
+ opts:['私有方法,不建议调用','原地(in-place)操作,直接修改 x 本身','异步执行,立即返回','对梯度而非数值做加法'], ans:1,
+ exp:'PyTorch 约定:带 _ 后缀的方法原地修改张量(add_、mul_、zero_ 等),省内存但要小心——可能破坏 autograd 反向所需的中间值。'},
+{lv:2, topic:'Autograd', q:'调用 <code>loss.backward()</code> 之后,参数 <code>w</code> 的梯度存放在哪里?',
+ opts:['<code>loss.grad</code>','<code>w.grad</code>','<code>optimizer.grads[w]</code>','由 backward() 作为返回值返回'], ans:1,
+ exp:'autograd 把梯度写进每个叶子张量自己的 .grad 属性,优化器 step() 时就是去各参数的 .grad 里读取。'},
+{lv:2, topic:'损失/优化器', q:'为什么每个训练步都要调用 <code>optimizer.zero_grad()</code>?',
+ opts:['否则优化器不会执行更新','因为 backward() 会把新梯度累加到 .grad 上,不清零就会混入旧梯度','为了释放 GPU 显存','为了重置学习率'], ans:1,
+ exp:'PyTorch 故意设计成梯度累加(方便梯度累积等技巧),所以常规训练必须每步清零,否则更新方向会被历史梯度污染。'},
+{lv:2, topic:'nn.Module', q:'<code>nn.Linear(10, 5)</code> 的 <code>weight</code> 形状是?',
+ opts:['<code>[10, 5]</code>','<code>[5, 10]</code>','<code>[15]</code>','<code>[10, 10]</code>'], ans:1,
+ exp:'nn.Linear 的权重是 (out_features, in_features),计算 y = x Wᵀ + b。记法:输出维度在前。'},
+{lv:2, topic:'nn.Module', q:'<code>model.eval()</code> 主要改变的是哪些层的行为?',
+ opts:['所有线性层停止更新权重','Dropout 与 BatchNorm 这类训练/推理行为不同的层','激活函数换成恒等映射','损失函数切换为评估模式'], ans:1,
+ exp:'eval() 让 Dropout 停止随机丢弃、BatchNorm 改用训练期累积的滑动统计量。它不影响梯度计算——那是 torch.no_grad() 的职责。'},
+
+/* ---------- 难度 3 ---------- */
+{lv:3, topic:'损失/优化器', q:'使用 <code>nn.CrossEntropyLoss</code> 时,模型的输出应该是?',
+ opts:['softmax 后的概率分布','log_softmax 后的对数概率','未归一化的原始 logits','argmax 后的预测类别'], ans:2,
+ exp:'CrossEntropyLoss = log_softmax + NLLLoss,归一化已含在内部。喂 logits 即可;自己再加 softmax 属于最常见的隐性 bug。'},
+{lv:3, topic:'Autograd', q:'评估模型时用 <code>with torch.no_grad():</code> 包裹前向计算,主要目的是?',
+ opts:['防止参数被意外修改','不构建计算图,省内存且更快','让 BatchNorm 使用滑动统计量','自动切换到 CPU 计算'], ans:1,
+ exp:'no_grad 上下文里的运算不记录计算图,推理时省掉一大块中间激活的存储。切换 BN/Dropout 行为要靠 model.eval(),两者常搭配使用但作用不同。'},
+{lv:3, topic:'Autograd', q:'<code>torch.no_grad()</code> 与 <code>tensor.detach()</code> 的区别,下列说法正确的是?',
+ opts:['两者完全等价,只是写法不同','no_grad 是上下文,内部所有运算不建图;detach 针对单个张量,返回一个脱离已有计算图的新张量','detach 会复制数据,no_grad 不会','no_grad 只能用于推理,detach 只能用于训练'], ans:1,
+ exp:'no_grad 管"接下来的运算";detach 管"这一个张量"。detach 返回的张量与原张量共享数据但不再参与梯度回传。'},
+{lv:3, topic:'张量', q:'关于 <code>view</code> 与 <code>reshape</code>,正确的是?',
+ opts:['两者完全等价','view 更快因为它在 GPU 上执行','view 要求内存连续、从不复制数据;reshape 在必要时会复制','reshape 已废弃,应一律用 view'], ans:2,
+ exp:'transpose/permute 之后张量常不连续,此时 view 直接报错,reshape 会悄悄复制。要么用 reshape,要么先 .contiguous() 再 view。'},
+{lv:3, topic:'Autograd', q:'以下代码执行后,<code>x.grad</code> 的值是?',
+ code:'x = torch.tensor(3.0, requires_grad=True)\ny = x ** 2\ny.backward()\nprint(x.grad)',
+ opts:['<code>3.0</code>','<code>6.0</code>','<code>9.0</code>','<code>None</code>'], ans:1,
+ exp:'y = x²,dy/dx = 2x = 2×3 = 6。autograd 沿计算图自动算出导数并写入 x.grad。'},
+{lv:3, topic:'训练循环', q:'训练时 <code>DataLoader(dataset, shuffle=True)</code> 的主要目的是?',
+ opts:['加快数据读取速度','每个 epoch 打乱样本顺序,避免模型学到与顺序相关的伪规律、让梯度估计更无偏','保证每个 batch 大小相同','让验证结果可复现'], ans:1,
+ exp:'若数据按类别或时间排列,不 shuffle 会让相邻 batch 高度相关,训练不稳且易过拟合顺序模式。验证/测试集则通常不需要 shuffle。'},
+{lv:3, topic:'张量', q:'对形状 <code>(2, 3)</code> 的 a 和形状 <code>(3, 4)</code> 的 b,<code>a * b</code> 与 <code>a @ b</code> 的结果分别是?',
+ opts:['都得到 (2, 4) 矩阵','a * b 报错(形状无法广播);a @ b 得到 (2, 4) 的矩阵乘结果','a * b 得 (2, 3);a @ b 报错','两者都报错'], ans:1,
+ exp:'* 是逐元素乘,(2,3) 与 (3,4) 无法广播,报错;@ 是矩阵乘(matmul),(2,3)@(3,4) → (2,4)。'},
+{lv:3, topic:'张量', q:'<code>torch.randn(3, 1, 4).squeeze(1).shape</code> 的结果是?',
+ opts:['<code>[3, 4]</code>','<code>[3, 1, 4]</code>','<code>[1, 3, 4]</code>','<code>[12]</code>'], ans:0,
+ exp:'squeeze(1) 移除第 1 维(大小必须为 1)→ [3, 4]。反向操作是 unsqueeze,常用于给单个样本补 batch 维。'},
+
+/* ---------- 难度 4 ---------- */
+{lv:4, topic:'Autograd', q:'对同一次前向计算的结果连续调用两次 <code>backward()</code> 会报错,原因是?',
+ opts:['梯度会溢出,PyTorch 主动阻止','第一次 backward 后计算图默认被释放,第二次无图可用;需 retain_graph=True 才能保留','.grad 已被占用,不能写第二次','backward 只能在训练模式下调用一次'], ans:1,
+ exp:'为省内存,反向传播完成后中间缓存即被释放。极少数需要多次反传的场景(如某些高阶用法)才用 retain_graph=True。'},
+{lv:4, topic:'Autograd', q:'<code>y = x * 2; z = y.sum(); z.backward()</code> 之后访问中间张量 <code>y.grad</code>,会得到?',
+ opts:['与 x.grad 相同的值','全 1 的张量','<code>None</code>(还会收到警告)——非叶子张量默认不保留梯度,需先调用 y.retain_grad()','报 RuntimeError'], ans:2,
+ exp:'autograd 只默认保留叶子张量(用户创建、requires_grad=True,如模型参数)的 .grad;中间结果的梯度用完即丢以省内存。'},
+{lv:4, topic:'Autograd', q:'以下代码执行后,<code>x.grad</code> 的值是?',
+ code:'x = torch.tensor(2.0, requires_grad=True)\ny = torch.tensor(5.0, requires_grad=True)\nz = x * y\nz.backward()\nprint(x.grad)',
+ opts:['<code>2.0</code>','<code>5.0</code>','<code>10.0</code>','<code>7.0</code>'], ans:1,
+ exp:'z = x·y,∂z/∂x = y = 5.0(同理 y.grad 会是 2.0)。乘法的梯度就是"另一个因子"。'},
+{lv:4, topic:'nn.Module', q:'<code>model.parameters()</code> 与 <code>model.state_dict()</code> 的区别,正确的是?',
+ opts:['完全相同,只是返回类型不同','parameters() 只含可训练参数的张量迭代器(交给优化器);state_dict() 是"名字→张量"的映射,还包含 BatchNorm 滑动统计量等 buffer,用于保存/加载','state_dict() 只在 eval 模式下可用','parameters() 包含 buffer,state_dict() 不包含'], ans:1,
+ exp:'保存模型用 state_dict 正是因为它比 parameters 多了 buffer(如 BN 的 running_mean/var)——只存参数会丢掉这些推理必需的状态。'},
+{lv:4, topic:'nn.Module', q:'BatchNorm 层在 <code>train()</code> 与 <code>eval()</code> 模式下的行为差异是?',
+ opts:['eval 模式下 BatchNorm 被完全跳过','train 用当前 batch 的均值/方差做归一化并更新滑动统计量;eval 用训练期累积的滑动统计量','train 模式下不做归一化,只累积统计量','两种模式行为相同,只是 eval 不更新权重'], ans:1,
+ exp:'这就是忘记 model.eval() 的危害:评估时仍用 batch 统计量,小 batch 或分布不同时结果会明显失真。'},
+{lv:4, topic:'Autograd', q:'<code>y</code> 是形状 <code>(3,)</code> 的向量,直接调用 <code>y.backward()</code> 会发生什么?',
+ opts:['自动对每个分量分别求梯度','报错——backward 默认只支持标量;需先聚合(如 y.sum())或传入 gradient 参数指定各分量权重','只对第一个分量求梯度','静默返回 None'], ans:1,
+ exp:'梯度定义在标量对张量上。loss 是标量所以常规训练没问题;想反传向量需给 backward(gradient=v) 指定加权,等价于对 (y·v).sum() 反传。'},
+{lv:4, topic:'Autograd', q:'对参与了前向计算、且反向需要其值的张量做原地操作(如 <code>x.relu_()</code>),可能的后果是?',
+ opts:['梯度自动变为 0','backward 时报 RuntimeError,提示张量已被 in-place 操作修改(版本计数不匹配)','PyTorch 自动复制一份,无影响','只在 GPU 上会出问题'], ans:1,
+ exp:'autograd 给每个张量维护版本号,反向时发现所需的中间值被原地改过就报错。这是 in-place 操作省内存的代价:用之前想清楚反向是否需要原值。'},
+{lv:4, topic:'损失/优化器', q:'<code>nn.CrossEntropyLoss</code> 对 batch 大小为 N、类别数为 C 的任务,期望的 target 格式是?',
+ opts:['形状 (N, C) 的 one-hot 浮点张量','形状 (N,) 的类别下标整型张量(值域 0..C-1)','形状 (N, 1) 的浮点张量','形状 (C,) 的类别频率'], ans:1,
+ exp:'target 是类别下标(long 型),如 tensor([2, 0, 1])。喂 one-hot 会因 dtype/形状不符报错(新版本虽支持概率标签,但常规用法是下标)。'},
+
+/* ---------- 难度 5 ---------- */
+{lv:5, topic:'Autograd', q:'以下代码执行后,<code>x.grad</code> 的值是?',
+ code:'x = torch.tensor(2.0, requires_grad=True)\ny = x ** 3 + 2 * x\ny.backward()\nprint(x.grad)',
+ opts:['<code>12.0</code>','<code>14.0</code>','<code>10.0</code>','<code>16.0</code>'], ans:1,
+ exp:'dy/dx = 3x² + 2 = 3×4 + 2 = 14。多项式各项梯度自动相加——这正是计算图上"分支汇合处梯度求和"的体现。'},
+{lv:5, topic:'训练循环', q:'显存不够跑大 batch,想用"梯度累积"以小 batch 模拟 batch_size×4 的效果,正确的写法是?',
+ opts:['每步都 zero_grad + backward,每 4 步 step 一次','每步 backward(loss / 4);每 4 步执行一次 step() 和 zero_grad()','把学习率乘 4,其余不变','每 4 步才调用一次 backward()'], ans:1,
+ exp:'利用"梯度累加"特性:4 个小 batch 的梯度自然加在 .grad 里,loss 除以 4 保证平均意义与大 batch 一致;step 和 zero_grad 每 4 步做一次。选项 A 每步清零,梯度根本累积不起来。'},
+{lv:5, topic:'损失/优化器', q:'<code>optimizer.zero_grad(set_to_none=True)</code>(新版本默认)相比置零的好处是?',
+ opts:['数值上更精确','把 .grad 设为 None 而非零张量:省一次显存写入、跳过后续"加到全零上"的开销,且能让优化器跳过没有梯度的参数','可以防止梯度爆炸','使 backward 可以调用两次'], ans:1,
+ exp:'None 意味着下次 backward 直接赋值而非累加,少一次 kernel;某些优化器还能识别 None 跳过更新。语义上注意:置 None 后读 .grad 得到 None 而不是 0。'},
+{lv:5, topic:'损失/优化器', q:'模型末尾误加了 <code>nn.Softmax(dim=1)</code>,后面又用 <code>nn.CrossEntropyLoss</code> 训练,最可能的现象是?',
+ opts:['立即抛出形状错误','loss 变为负数','不报错,但相当于做了两次 softmax:梯度被压小、数值不稳,模型能训但收敛慢、效果差——难以察觉的隐性 bug','完全没有影响,因为 softmax 是幂等的'], ans:2,
+ exp:'CrossEntropyLoss 内部会再做一次 log_softmax。概率再过 softmax 后分布被"抹平",梯度信号显著变弱。这类 bug 不报错,只能靠理解 API 约定来避免。'},
+{lv:5, topic:'nn.Module', q:'<code>self.register_buffer("running_mean", torch.zeros(dim))</code> 的作用是?',
+ opts:['注册一块临时缓存,forward 结束即释放','注册"非参数的持久状态":随 state_dict 保存/加载、随 .to(device) 移动,但不出现在 parameters() 中、不被优化器更新','注册一个可训练参数的别名','把张量固定在 CPU 上防止移动'], ans:1,
+ exp:'BatchNorm 的 running_mean/var 就是这样实现的:它们是模型状态但不是"学"出来的。若用普通属性存放,保存模型和 .to(device) 时都会被遗漏。'},
+{lv:5, topic:'Autograd', q:'<code>x.data</code> 与 <code>x.detach()</code> 都能得到"脱离计算图"的张量,为什么官方推荐用 detach()?',
+ opts:['detach() 会复制数据,更安全','x.data 已被删除,无法使用','两者返回的张量都与 x 共享内存,但对 detach() 结果的原地修改会被 autograd 的版本检查发现并报错;而 x.data 绕过检查,可能静默产生错误的梯度','detach() 在 GPU 上更快'], ans:2,
+ exp:'.data 是旧 API,绕开版本计数——改了反向所需的值也不报错,梯度悄悄算错,极难排查。detach() 出问题至少会炸出 RuntimeError。'},
+{lv:5, topic:'训练循环', q:'以下训练循环有一个 bug,最可能导致的现象是?',
+ code:'for xb, yb in loader:\n    logits = model(xb)\n    loss = criterion(logits, yb)\n    loss.backward()\n    optimizer.step()\n    # 没有 optimizer.zero_grad()',
+ opts:['程序在第二次迭代时报错','梯度在 .grad 中不断累加,更新方向被历史梯度污染,loss 剧烈震荡甚至发散','训练变慢但结果正确','显存无限增长直到 OOM'], ans:1,
+ exp:'不报错是它的阴险之处:每步的 .grad 都是"历史所有梯度之和",步长实际不断膨胀、方向陈旧。这是新手 bug 排行榜第一名。'},
+{lv:5, topic:'Autograd', q:'不用优化器、手写 SGD 更新参数时,为什么更新要放在 <code>with torch.no_grad():</code> 里?',
+ code:'with torch.no_grad():\n    for p in model.parameters():\n        p -= lr * p.grad',
+ opts:['为了让更新在 GPU 上执行','纯粹是习惯,去掉也完全一样','参数是 requires_grad=True 的叶子张量,直接对它做(原地)运算会试图记入计算图并报错;no_grad 下更新才被当作"纯数值操作"','为了自动清空 .grad'], ans:2,
+ exp:'不加 no_grad 会得到 "a leaf Variable that requires grad is being used in an in-place operation" 之类的错误——参数更新本身不属于要求导的计算。optimizer.step() 内部正是这么做的。'},
+];
+
+/* ================= 自适应引擎 ================= */
+const QUIZ_LEN = 12;
+const START_LV = 2;
+const LV_NAMES = {1:'入门', 2:'基础', 3:'中等', 4:'较难', 5:'进阶'};
+const state = { pool:{}, level:START_LV, idx:0, score:0, history:[], current:null, answered:false };
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function startQuiz() {
+  state.pool = {};
+  for (let l = 1; l <= 5; l++) state.pool[l] = shuffle(BANK.filter(q => q.lv === l).slice());
+  state.level = START_LV; state.idx = 0; state.score = 0; state.history = [];
+  document.getElementById('quiz-start').classList.add('hidden');
+  document.getElementById('quiz-result').classList.add('hidden');
+  document.getElementById('quiz-play').classList.remove('hidden');
+  nextQuestion();
+}
+
+function drawQuestion(level) {
+  // 优先取当前难度;取空则找最近的有题难度
+  if (state.pool[level].length) return state.pool[level].shift();
+  for (let d = 1; d <= 4; d++) {
+    for (const l of [level - d, level + d]) {
+      if (l >= 1 && l <= 5 && state.pool[l] && state.pool[l].length) return state.pool[l].shift();
+    }
+  }
+  return null;
+}
+
+function nextQuestion() {
+  const q = drawQuestion(state.level);
+  if (!q || state.idx >= QUIZ_LEN) { showResult(); return; }
+  state.current = q; state.answered = false; state.idx++;
+
+  document.getElementById('q-num').textContent = `第 ${state.idx} / ${QUIZ_LEN} 题`;
+  document.getElementById('q-score').textContent = state.score;
+  document.getElementById('q-bar').style.width = ((state.idx - 1) / QUIZ_LEN * 100) + '%';
+  document.getElementById('diff-name').textContent = `${q.lv} 级 · ${LV_NAMES[q.lv]}`;
+  document.querySelectorAll('#diff-dots span').forEach((s, i) => s.classList.toggle('on', i < q.lv));
+  document.getElementById('q-topic').textContent = q.topic;
+  document.getElementById('q-text').innerHTML = q.q;
+
+  const codeEl = document.getElementById('q-code');
+  if (q.code) { codeEl.classList.remove('hidden'); document.getElementById('q-code-inner').textContent = q.code; }
+  else codeEl.classList.add('hidden');
+
+  const opts = document.getElementById('q-opts');
+  opts.innerHTML = '';
+  const order = shuffle(q.opts.map((_, i) => i));
+  order.forEach((origIdx, pos) => {
+    const b = document.createElement('button');
+    b.className = 'opt';
+    b.innerHTML = `<span class="key">${'ABCD'[pos]}</span>${q.opts[origIdx]}`;
+    b.dataset.orig = origIdx;
+    b.addEventListener('click', () => answer(b, origIdx));
+    opts.appendChild(b);
+  });
+
+  document.getElementById('q-feedback').className = 'feedback';
+  document.getElementById('btn-next').classList.add('hidden');
+}
+
+function answer(btn, chosen) {
+  if (state.answered) return;
+  state.answered = true;
+  const q = state.current;
+  const correct = chosen === q.ans;
+  if (correct) state.score++;
+
+  document.querySelectorAll('#q-opts .opt').forEach(b => {
+    b.disabled = true;
+    if (+b.dataset.orig === q.ans) b.classList.add('correct');
+    else if (b === btn) b.classList.add('wrong');
+  });
+
+  const oldLv = state.level;
+  state.level = correct ? Math.min(5, state.level + 1) : Math.max(1, state.level - 1);
+  state.history.push({ q, chosen, correct, lv: q.lv });
+
+  const fb = document.getElementById('q-feedback');
+  fb.className = 'feedback show ' + (correct ? 'good' : 'bad');
+  document.getElementById('fb-verdict').textContent = correct ? '✓ 回答正确!' : '✗ 回答错误';
+  document.getElementById('fb-exp').innerHTML = q.exp;
+  const diffMsg = state.idx >= QUIZ_LEN ? '' :
+    (state.level > oldLv ? `难度提升:下一题 ${state.level} 级(${LV_NAMES[state.level]})` :
+     state.level < oldLv ? `难度下调:下一题 ${state.level} 级(${LV_NAMES[state.level]})` :
+     `难度保持在 ${state.level} 级(${LV_NAMES[state.level]},已到${state.level===5?'最高':'最低'}档)`);
+  document.getElementById('fb-diff').textContent = diffMsg;
+
+  document.getElementById('q-bar').style.width = (state.idx / QUIZ_LEN * 100) + '%';
+  document.getElementById('q-score').textContent = state.score;
+  const nextBtn = document.getElementById('btn-next');
+  nextBtn.textContent = state.idx >= QUIZ_LEN ? '查看成绩 →' : '下一题 →';
+  nextBtn.classList.remove('hidden');
+}
+
+function showResult() {
+  document.getElementById('quiz-play').classList.add('hidden');
+  document.getElementById('quiz-result').classList.remove('hidden');
+
+  const total = state.history.length;
+  const acc = total ? state.score / total : 0;
+  const peak = Math.max(...state.history.map(h => h.lv));
+  document.getElementById('r-score').textContent = state.score;
+  document.getElementById('r-total').textContent = total;
+  document.getElementById('r-acc').textContent = Math.round(acc * 100) + '%';
+  document.getElementById('r-peak').textContent = `${peak} 级 · ${LV_NAMES[peak]}`;
+  document.getElementById('r-final').textContent = `${state.level} 级 · ${LV_NAMES[state.level]}`;
+
+  let comment;
+  if (acc >= 0.85 && peak >= 5) comment = '出色!你已经稳稳越过入门线,连进阶陷阱题都难不住你。';
+  else if (acc >= 0.7) comment = '很扎实!核心概念基本过关,错题讲解里的细节值得再看一眼。';
+  else if (acc >= 0.5) comment = '不错的开始。建议重读错题对应的章节,再来一轮爬得会更高。';
+  else comment = '别灰心——回到教程把基础章节过一遍,测验会记住你的水平从简单题重新练起。';
+  document.getElementById('r-comment').textContent = comment;
+
+  // 难度轨迹 SVG
+  const W = 600, H = 100, pad = 24;
+  const n = state.history.length;
+  const px = i => n === 1 ? W / 2 : pad + i * (W - 2 * pad) / (n - 1);
+  const py = lv => H - 10 - (lv - 1) * (H - 30) / 4;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">`;
+  for (let l = 1; l <= 5; l++)
+    svg += `<line x1="${pad}" y1="${py(l)}" x2="${W - pad}" y2="${py(l)}" stroke="#eee9e2" stroke-width="1"/>
+            <text x="4" y="${py(l) + 4}" font-size="10" fill="#999">${l}</text>`;
+  svg += `<polyline fill="none" stroke="#ee4c2c" stroke-width="2" points="${state.history.map((h, i) => px(i) + ',' + py(h.lv)).join(' ')}"/>`;
+  state.history.forEach((h, i) => {
+    svg += `<circle cx="${px(i)}" cy="${py(h.lv)}" r="5" fill="${h.correct ? '#1a9c6b' : '#d64545'}"/>`;
+  });
+  svg += '</svg><div style="font-size:12px;color:#5b6472">● 绿点=答对,红点=答错;纵轴为该题难度等级</div>';
+  document.getElementById('r-traj').innerHTML = svg;
+
+  // 主题统计
+  const topics = {};
+  state.history.forEach(h => {
+    const t = h.q.topic;
+    topics[t] = topics[t] || { c: 0, n: 0 };
+    topics[t].n++; if (h.correct) topics[t].c++;
+  });
+  document.getElementById('r-topics').innerHTML = Object.entries(topics).map(([t, s]) => {
+    const p = Math.round(s.c / s.n * 100);
+    return `<div class="topic-item"><span class="name">${t}</span><span class="bar"><i style="width:${p}%"></i></span><span class="pct">${s.c}/${s.n} · ${p}%</span></div>`;
+  }).join('');
+
+  // 逐题回顾
+  document.getElementById('r-review').innerHTML = state.history.map((h, i) => `
+    <div class="review-item ${h.correct ? 'good' : 'bad'}">
+      <b>Q${i + 1}(${h.lv} 级 · ${h.q.topic})${h.correct ? ' ✓' : ' ✗'}</b><br>${h.q.q}
+      ${h.q.code ? `<pre style="margin:8px 0"><code>${h.q.code.replace(/</g,'&lt;')}</code></pre>` : ''}
+      <div style="margin-top:6px">正确答案:${h.q.opts[h.q.ans]}${h.correct ? '' : `<br>你的选择:${h.q.opts[h.chosen]}`}</div>
+      <div style="margin-top:4px;color:#5b6472">${h.q.exp}</div>
+    </div>`).join('');
+  document.getElementById('r-review').classList.add('hidden');
+  document.getElementById('btn-review').textContent = '查看逐题回顾';
+}
+
+document.getElementById('btn-start').addEventListener('click', startQuiz);
+document.getElementById('btn-next').addEventListener('click', nextQuestion);
+document.getElementById('btn-restart').addEventListener('click', startQuiz);
+document.getElementById('btn-review').addEventListener('click', () => {
+  const r = document.getElementById('r-review');
+  r.classList.toggle('hidden');
+  document.getElementById('btn-review').textContent = r.classList.contains('hidden') ? '查看逐题回顾' : '收起回顾';
+});
+</script>
+</body>
+</html>
