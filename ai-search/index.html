@@ -1,0 +1,1983 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>从倒排索引到生成式检索——LLM 时代的工业级搜索</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+<style>
+:root{
+  --bg:#0b0e14; --bg2:#10141d; --card:#151a26; --card2:#1a2030;
+  --text:#e9edf5; --muted:#98a3b8; --dim:#6b7690; --line:#273049;
+  --a1:#f2a33c; --a2:#3fc6d0; --a3:#b78cff; --a3b:#e879a8; --a4:#4ade80;
+  --gold:#ffd479;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif;overflow:hidden}
+#deck{position:absolute;inset:0}
+.slide{display:none;position:absolute;inset:0;padding:52px 84px 84px;overflow-y:auto;background:
+  radial-gradient(1200px 600px at 85% -10%, rgba(63,198,208,.06), transparent 60%),
+  radial-gradient(900px 500px at -10% 110%, rgba(183,140,255,.05), transparent 60%), var(--bg)}
+.slide.active{display:block;animation:fadein .35s ease}
+@keyframes fadein{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}
+.kicker{font-size:13px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;font-weight:600}
+.kicker b{color:var(--acc,var(--a2));font-weight:700}
+h1{font-size:46px;line-height:1.25;font-weight:800;letter-spacing:.01em}
+h2{font-size:33px;line-height:1.3;font-weight:800;margin-bottom:6px}
+h2 .en{font-size:17px;color:var(--muted);font-weight:500;margin-left:12px}
+h3{font-size:19px;font-weight:700;margin-bottom:8px}
+.sub{color:var(--muted);font-size:16.5px;margin:6px 0 22px;line-height:1.6}
+p,li{font-size:16px;line-height:1.7}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start}
+.cols3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;align-items:start}
+.box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:16px}
+.box.tight{padding:14px 18px}
+.lbl{display:inline-block;font-size:12.5px;font-weight:700;letter-spacing:.14em;padding:3px 11px;border-radius:99px;margin-bottom:10px;color:#0b0e14}
+.lbl.i{background:var(--gold)} .lbl.m{background:var(--a2)} .lbl.a{background:var(--a3)} .lbl.p{background:var(--a4)} .lbl.n{background:var(--a3b)}
+.formula{background:#0d1220;border:1px solid #1d2740;border-radius:10px;padding:12px 16px;margin:10px 0;overflow-x:auto;font-size:15px}
+.note{color:var(--muted);font-size:14.5px;line-height:1.65;margin-top:8px}
+.note b{color:var(--text)}
+em{color:var(--gold);font-style:normal}
+strong{color:#fff}
+.stats{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0}
+.stat{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--acc,var(--a2));border-radius:10px;padding:12px 18px;min-width:150px}
+.stat .num{font-size:26px;font-weight:800;color:var(--acc,var(--a2))}
+.stat .cap{font-size:13px;color:var(--muted);margin-top:3px;line-height:1.45}
+ul.clean{list-style:none} ul.clean li{padding-left:20px;position:relative;margin-bottom:9px}
+ul.clean li::before{content:"";position:absolute;left:2px;top:11px;width:7px;height:7px;border-radius:2px;background:var(--acc,var(--a2))}
+table{width:100%;border-collapse:collapse;font-size:14.5px;margin:12px 0}
+th{background:var(--card2);color:var(--text);font-weight:700;text-align:left;padding:9px 12px;border:1px solid var(--line);font-size:14px}
+td{padding:8px 12px;border:1px solid var(--line);color:var(--muted);line-height:1.55;vertical-align:top}
+td b,td strong{color:var(--text)}
+/* 骨架流程图 */
+.skel{display:flex;align-items:stretch;gap:0;margin:18px 0;flex-wrap:wrap}
+.sk{flex:1;min-width:110px;background:var(--card);border:1.5px solid var(--line);border-radius:12px;padding:13px 8px;text-align:center;font-weight:700;font-size:15.5px;position:relative}
+.sk small{display:block;font-weight:500;font-size:12px;color:var(--muted);margin-top:5px;line-height:1.45}
+.skar{display:flex;align-items:center;padding:0 7px;color:var(--dim);font-size:19px;font-weight:700}
+.sk.hl{border-color:var(--acc,var(--a2));background:linear-gradient(180deg,color-mix(in srgb,var(--acc,var(--a2)) 14%,var(--card)),var(--card));box-shadow:0 0 24px color-mix(in srgb,var(--acc,var(--a2)) 18%,transparent)}
+.sk.hl::after{content:attr(data-tag);position:absolute;top:-11px;left:50%;transform:translateX(-50%);background:var(--acc,var(--a2));color:#0b0e14;font-size:11px;font-weight:800;padding:2px 10px;border-radius:99px;white-space:nowrap}
+.loop{ text-align:center;color:var(--dim);font-size:13px;margin-top:6px}
+/* 通用流程行 */
+.flow{display:flex;align-items:stretch;gap:0;flex-wrap:wrap;margin:12px 0}
+.fbox{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:14px;font-weight:600;text-align:center;display:flex;flex-direction:column;justify-content:center}
+.fbox small{font-weight:400;font-size:12px;color:var(--muted);margin-top:4px;line-height:1.4}
+.far{display:flex;align-items:center;padding:0 8px;color:var(--acc,var(--a2));font-weight:700;font-size:16px}
+.fbox.hi{border-color:var(--acc,var(--a2));color:var(--text)}
+.pill{display:inline-block;background:var(--card2);border:1px solid var(--line);border-radius:99px;padding:3px 12px;font-size:13px;color:var(--muted);margin:3px 4px 3px 0}
+.pill.on{border-color:var(--acc,var(--a2));color:var(--text)}
+.refline{font-size:13.5px;color:var(--dim);margin-top:14px;border-top:1px dashed var(--line);padding-top:10px;line-height:1.7}
+.refline a{color:var(--a2);text-decoration:none}
+.refline a:hover{text-decoration:underline}
+a{color:var(--a2)}
+/* 底部 UI */
+#hud{position:fixed;left:0;right:0;bottom:0;height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;z-index:50;background:linear-gradient(0deg,rgba(11,14,20,.92),rgba(11,14,20,0));pointer-events:none}
+#hud>*{pointer-events:auto}
+#pageno{font-size:13px;color:var(--dim);font-variant-numeric:tabular-nums}
+#actname{font-size:13px;color:var(--dim)}
+#navbtns{display:flex;gap:8px}
+#navbtns button{background:var(--card);border:1px solid var(--line);color:var(--text);width:38px;height:30px;border-radius:8px;cursor:pointer;font-size:15px}
+#navbtns button:hover{border-color:var(--a2)}
+#navbtns button.toc{width:auto;padding:0 13px;font-size:13px}
+#progress{position:fixed;top:0;left:0;height:3px;background:linear-gradient(90deg,var(--a1),var(--a2),var(--a3),var(--a4));z-index:60;transition:width .3s ease}
+/* 封面 */
+.cover{display:flex!important;flex-direction:column;justify-content:center;align-items:flex-start}
+.cover.slide{display:none!important}.cover.slide.active{display:flex!important}
+.cover h1{font-size:56px;background:linear-gradient(92deg,#fff 20%,var(--a2) 55%,var(--a3));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;max-width:1000px}
+.cover .zh-sub{font-size:24px;color:var(--text);margin-top:18px;font-weight:600}
+.cover .meta{margin-top:40px;color:var(--muted);font-size:15px;line-height:2}
+.acts-row{display:flex;gap:14px;margin-top:34px;flex-wrap:wrap}
+.act-chip{border-radius:12px;padding:10px 18px;font-size:14.5px;font-weight:700;border:1px solid var(--line);background:var(--card)}
+.act-chip.c1{border-color:var(--a1);color:var(--a1)} .act-chip.c2{border-color:var(--a2);color:var(--a2)}
+.act-chip.c3{border-color:var(--a3);color:var(--a3)} .act-chip.c4{border-color:var(--a4);color:var(--a4)}
+/* 目录 */
+.toc-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:10px}
+.toc-item{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 20px;cursor:pointer;transition:.15s}
+.toc-item:hover{transform:translateY(-2px);border-color:var(--tc)}
+.toc-item .t-act{font-size:12.5px;font-weight:800;letter-spacing:.15em;color:var(--tc)}
+.toc-item .t-title{font-size:18px;font-weight:700;margin:5px 0 4px}
+.toc-item .t-desc{font-size:13.5px;color:var(--muted);line-height:1.55}
+/* 幕间页 */
+.act-open{display:flex!important;flex-direction:column;justify-content:center}
+.act-open.slide{display:none!important}.act-open.slide.active{display:flex!important}
+.act-open .big-num{font-size:15px;font-weight:800;letter-spacing:.3em;color:var(--acc)}
+.act-open h1{font-size:50px;margin:14px 0 8px}
+.act-open .tag-line{font-size:21px;color:var(--muted);max-width:900px;line-height:1.7}
+.act-open .tag-line em{color:var(--acc)}
+/* SVG 通用 */
+svg text{font-family:inherit}
+.svgwrap{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:16px}
+.center{text-align:center}
+.mt0{margin-top:0}.mb0{margin-bottom:0}
+@media (max-width:1100px){.cols,.cols3,.toc-grid{grid-template-columns:1fr}.slide{padding:40px 36px 80px}h1{font-size:36px}.cover h1{font-size:40px}}
+::-webkit-scrollbar{width:9px}::-webkit-scrollbar-thumb{background:var(--line);border-radius:6px}
+</style>
+</head>
+<body>
+<div id="progress"></div>
+<div id="deck">
+
+<!-- ============ 0 封面 ============ -->
+<section class="slide cover" id="cover" style="--acc:var(--a2)">
+  <div class="kicker">AI SEARCH · DEEP DIVE · 2026.07</div>
+  <h1>从倒排索引到生成式检索</h1>
+  <div class="zh-sub">LLM 时代的工业级搜索：一条查询的旅程</div>
+  <div class="acts-row">
+    <div class="act-chip c1">第一幕 · 符号时代</div>
+    <div class="act-chip c2">第二幕 · 嵌入时代</div>
+    <div class="act-chip c3">第三幕 · LLM 时代</div>
+    <div class="act-chip c4">终幕 · 拼图完成</div>
+  </div>
+  <div class="meta">
+    覆盖论文：Unicorn · EBR · Que2Search · DPR · ColBERT · E5-Mistral · Gecko · HyDE · RankGPT · DSI · RAG · Self-RAG · UMBRELA ……<br>
+    行业动态：Meta AI Mode · Google AI Overviews / AI Mode · OpenAI ChatGPT Search · Perplexity<br>
+    <span style="color:var(--dim)">键盘 ← → 或空格翻页 · 底部按钮可跳转目录</span>
+  </div>
+</section>
+
+<!-- ============ 1 阅读指南 ============ -->
+<section class="slide" style="--acc:var(--a2)">
+  <div class="kicker"><b>序</b> · 这份幻灯片怎么读</div>
+  <h2>不罗列论文，只讲一个故事</h2>
+  <p class="sub">每个时代回答同一个问题：<em>骨架中的哪些环节被换掉了？为什么？</em></p>
+  <div class="cols">
+    <div>
+      <div class="box">
+        <span class="lbl i">主线</span>
+        <p>全片围绕<strong>一张骨架图</strong>展开：查询理解 → 召回 → 排序 → 结果呈现 → 评估闭环。所有论文不是并列的知识点，而是这张图在 2013 → 2020 → 2026 之间被逐个环节替换升级的<strong>演化证据</strong>。</p>
+      </div>
+      <div class="box">
+        <span class="lbl m">深度定位</span>
+        <p>中等技术深度：<strong>核心公式 + 直觉解释 + 设计权衡</strong>。不做完整推导，但每条公式都会讲清"它在优化什么、为什么长这样"。</p>
+      </div>
+    </div>
+    <div>
+      <div class="box">
+        <span class="lbl a">每个主题页的固定结构</span>
+        <div class="flow">
+          <div class="fbox hi">直觉<small>一个类比</small></div><div class="far">→</div>
+          <div class="fbox hi">数学<small>核心公式</small></div><div class="far">→</div>
+          <div class="fbox hi">架构<small>组件与数据流</small></div><div class="far">→</div>
+          <div class="fbox hi">位置<small>在骨架中的上下游</small></div>
+        </div>
+        <p class="note">页脚附经核对的原文链接；结尾有完整参考文献。</p>
+      </div>
+      <div class="box">
+        <span class="lbl p">重点权重</span>
+        <p>第三幕（LLM 时代）约占一半篇幅，六大主题——内容理解、查询理解、蒸馏、生成式检索、RAG、AI-as-a-Judge——<strong>逐个挂到骨架对应位置</strong>，最后拼成一张 2026 工业级 AI 搜索全栈图。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 2 目录 ============ -->
+<section class="slide" id="toc" style="--acc:var(--a2)">
+  <div class="kicker"><b>目录</b> · CONTENTS</div>
+  <h2>五幕剧</h2>
+  <div class="toc-grid">
+    <div class="toc-item" style="--tc:var(--a2)" data-goto="skeleton">
+      <div class="t-act" >序幕</div>
+      <div class="t-title">一条查询的旅程</div>
+      <div class="t-desc">搜索系统的通用骨架 · 三个时代总览</div>
+    </div>
+    <div class="toc-item" style="--tc:var(--a1)" data-goto="act1">
+      <div class="t-act">第一幕 · 2013</div>
+      <div class="t-title">符号时代：Unicorn</div>
+      <div class="t-desc">倒排索引 + 图操作符 · 搜索 = 集合运算</div>
+    </div>
+    <div class="toc-item" style="--tc:var(--a2)" data-goto="act2">
+      <div class="t-act">第二幕 · 2020</div>
+      <div class="t-title">嵌入时代：EBR / DPR / ColBERT</div>
+      <div class="t-desc">召回被向量替换 · 相关性 = 空间距离 · 难负例与 ANN</div>
+    </div>
+    <div class="toc-item" style="--tc:var(--a3)" data-goto="act3">
+      <div class="t-act">第三幕 · 2022+</div>
+      <div class="t-title">LLM 时代：六大主题攻占骨架</div>
+      <div class="t-desc">理解 · 蒸馏 · 生成式检索 DSI · RAG · AI-as-a-Judge</div>
+    </div>
+    <div class="toc-item" style="--tc:var(--a4)" data-goto="act4">
+      <div class="t-act">终幕 · 2026</div>
+      <div class="t-title">拼图完成：工业级 AI 搜索全栈</div>
+      <div class="t-desc">Meta / Google / OpenAI / Perplexity 逐一映射对照</div>
+    </div>
+    <div class="toc-item" style="--tc:var(--gold)" data-goto="appendix">
+      <div class="t-act">附录</div>
+      <div class="t-title">经典链路补遗与 2026 现状核查</div>
+      <div class="t-desc">对照王树森《搜索引擎技术》· 评价体系 · BM25 · NLU 链 · 相关性 BERT · 融合排序 · 查询词推荐</div>
+    </div>
+    <div class="toc-item" style="--tc:var(--gold)" data-goto="refs">
+      <div class="t-act">尾声</div>
+      <div class="t-title">演进总结 + 参考文献</div>
+      <div class="t-desc">三条贯穿线 · 全部原文链接</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 3 骨架 ============ -->
+<section class="slide" id="skeleton" style="--acc:var(--a2)">
+  <div class="kicker"><b>序幕</b> · 通用骨架</div>
+  <h2>一条查询的旅程 <span class="en">The Anatomy of a Search System</span></h2>
+  <p class="sub">无论 2013 年的 Facebook 还是 2026 年的 Perplexity，一条查询都要走完这五步。<em>变的从来不是骨架，而是每个环节里装的东西。</em></p>
+  <div class="skel">
+    <div class="sk">① 查询理解<small>分词 · 意图 · 改写<br>实体链接 · query 表示</small></div><div class="skar">→</div>
+    <div class="sk">② 召回<small>从十亿级候选<br>捞出千级候选</small></div><div class="skar">→</div>
+    <div class="sk">③ 排序<small>粗排 → 精排<br>算力递增 候选递减</small></div><div class="skar">→</div>
+    <div class="sk">④ 结果呈现<small>十条蓝链 · 摘要<br>…或生成式答案</small></div><div class="skar">→</div>
+    <div class="sk">⑤ 评估闭环<small>A/B · 人工标注<br>日志回流训练</small></div>
+  </div>
+  <div class="loop">⑤ ⟲ 评估产出的标注与日志，回流成 ①–③ 的训练数据——闭环是系统持续变强的引擎</div>
+  <div class="cols" style="margin-top:14px">
+    <div class="box tight">
+      <span class="lbl i">为什么是漏斗</span>
+      <p class="note"><b>算力守恒</b>：对十亿候选跑重模型不可行。于是召回用最便宜的方法处理最多候选，精排用最贵的模型处理最少候选——这个"级联漏斗"约束了后面所有技术的形态：<b>任何新模型想上线，都必须回答"你打算住进哪一层、付得起那层的延迟房租吗"</b>。</p>
+    </div>
+    <div class="box tight">
+      <span class="lbl a">三个时代的一句话预告</span>
+      <p class="note"><b style="color:var(--a1)">符号时代</b>：搜索 = 集合运算（倒排索引求交并）。<br>
+      <b style="color:var(--a2)">嵌入时代</b>：相关性 = 空间距离（②召回被向量替换）。<br>
+      <b style="color:var(--a3)">LLM 时代</b>：五个环节被逐个改写，索引本身甚至变成了模型参数。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 4 时间线 ============ -->
+<section class="slide" style="--acc:var(--a2)">
+  <div class="kicker"><b>序幕</b> · 三个时代</div>
+  <h2>同一张骨架，十三年三次换血</h2>
+  <div class="svgwrap">
+  <svg viewBox="0 0 1200 330" width="100%">
+    <defs>
+      <marker id="tlar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8z" fill="#6b7690"/></marker>
+    </defs>
+    <line x1="40" y1="270" x2="1170" y2="270" stroke="#273049" stroke-width="2" marker-end="url(#tlar)"/>
+    <!-- era bands -->
+    <rect x="50" y="245" width="240" height="14" rx="7" fill="#f2a33c" opacity=".8"/>
+    <rect x="300" y="245" width="330" height="14" rx="7" fill="#3fc6d0" opacity=".8"/>
+    <rect x="640" y="245" width="510" height="14" rx="7" fill="#b78cff" opacity=".8"/>
+    <text x="170" y="295" fill="#f2a33c" font-size="15" font-weight="700" text-anchor="middle">符号时代 2013–</text>
+    <text x="465" y="295" fill="#3fc6d0" font-size="15" font-weight="700" text-anchor="middle">嵌入时代 2020–</text>
+    <text x="895" y="295" fill="#b78cff" font-size="15" font-weight="700" text-anchor="middle">LLM 时代 2022–</text>
+    <!-- milestones -->
+    <g font-size="13.5" fill="#e9edf5" font-weight="600">
+      <g><circle cx="90" cy="252" r="5" fill="#fff"/><line x1="90" y1="245" x2="90" y2="80" stroke="#3a4463" stroke-dasharray="3 3"/><text x="90" y="66" text-anchor="middle">Unicorn</text><text x="90" y="84" text-anchor="middle" fill="#98a3b8" font-size="12">2013 · 倒排+图算子</text></g>
+      <g><circle cx="330" cy="252" r="5" fill="#fff"/><line x1="330" y1="245" x2="330" y2="130" stroke="#3a4463" stroke-dasharray="3 3"/><text x="330" y="116" text-anchor="middle">DPR / ColBERT / EBR</text><text x="330" y="134" text-anchor="middle" fill="#98a3b8" font-size="12">2020 · 双塔向量召回</text></g>
+      <g><circle cx="460" cy="252" r="5" fill="#fff"/><line x1="460" y1="245" x2="460" y2="60" stroke="#3a4463" stroke-dasharray="3 3"/><text x="460" y="46" text-anchor="middle">Que2Search · REALM / RAG</text><text x="460" y="64" text-anchor="middle" fill="#98a3b8" font-size="12">2020–21 · 预训练模型入栈</text></g>
+      <g><circle cx="660" cy="252" r="5" fill="#fff"/><line x1="660" y1="245" x2="660" y2="130" stroke="#3a4463" stroke-dasharray="3 3"/><text x="660" y="116" text-anchor="middle">DSI · HyDE</text><text x="660" y="134" text-anchor="middle" fill="#98a3b8" font-size="12">2022 · 生成式检索萌芽</text></g>
+      <g><circle cx="790" cy="252" r="5" fill="#fff"/><line x1="790" y1="245" x2="790" y2="60" stroke="#3a4463" stroke-dasharray="3 3"/><text x="790" y="46" text-anchor="middle">RankGPT · Thomas et al.</text><text x="790" y="64" text-anchor="middle" fill="#98a3b8" font-size="12">2023 · LLM 排序与评估</text></g>
+      <g><circle cx="920" cy="252" r="5" fill="#fff"/><line x1="920" y1="245" x2="920" y2="130" stroke="#3a4463" stroke-dasharray="3 3"/><text x="920" y="116" text-anchor="middle">Gecko · AI Overviews</text><text x="920" y="134" text-anchor="middle" fill="#98a3b8" font-size="12">2024 · 蒸馏与产品化</text></g>
+      <g><circle cx="1060" cy="252" r="5" fill="#fff"/><line x1="1060" y1="245" x2="1060" y2="60" stroke="#3a4463" stroke-dasharray="3 3"/><text x="1060" y="46" text-anchor="middle">AI Mode ×2 · Deep Research</text><text x="1060" y="64" text-anchor="middle" fill="#98a3b8" font-size="12">2025–26 · 生成式搜索全面落地</text></g>
+    </g>
+  </svg>
+  </div>
+  <p class="note center">有趣的巧合：Meta 的搜索栈（Unicorn → EBR → Que2Search → 2026 AI Mode）恰好完整跨越三个时代——终幕我们会回到这条线。</p>
+</section>
+
+<!-- ============ 第一幕 开场 ============ -->
+<section class="slide act-open" id="act1" style="--acc:var(--a1)">
+  <div class="big-num">ACT I · 2013</div>
+  <h1 style="color:var(--a1)">第一幕 · 符号时代</h1>
+  <p class="tag-line">骨架的 2013 版：倒排索引 + 图操作符。<br>这个时代的世界观只有一句话——<em>搜索，就是集合运算。</em></p>
+  <div class="acts-row">
+    <span class="pill on" style="--acc:var(--a1)">Unicorn · VLDB 2013</span>
+    <span class="pill">万亿级边的社交图谱</span>
+    <span class="pill">每天数十亿次查询</span>
+  </div>
+</section>
+
+<!-- ============ Unicorn ① ============ -->
+<section class="slide" style="--acc:var(--a1)">
+  <div class="kicker"><b>第一幕</b> · Unicorn（Facebook, VLDB 2013）</div>
+  <h2>搜索 = 集合运算 <span class="en">Search as Set Operations</span></h2>
+  <div class="cols">
+    <div>
+      <div class="box">
+        <span class="lbl i">直觉</span>
+        <p>把 Facebook 社交图谱想象成一座图书馆的<strong>索引卡片柜</strong>：每张卡片是一个属性（"是 David 的朋友""住在纽约"），卡片后挂着满足该属性的实体列表（posting list）。搜索一句话 = 把几张卡片<em>叠起来做交并差</em>。图遍历也能用倒排索引的语言表达——这是 Unicorn 的核心洞察。</p>
+      </div>
+      <div class="box">
+        <span class="lbl m">数学：集合代数</span>
+        <div class="formula">$$\text{result} = \mathrm{PL}(t_1)\;\square\;\mathrm{PL}(t_2)\;\square\;\cdots,\qquad \square\in\{\cap,\,\cup,\,\setminus\}$$</div>
+        <p class="note">\(t_i\) 是前缀化词条，如 <b>friend:10003</b>（10003 号用户的好友）。\(\cap/\cup/\setminus\) 对应 <b>and / or / difference</b> 算子。</p>
+        <div class="formula">$$\mathrm{apply}(E,\;\text{edge\_type}) = \bigcup_{v\in E}\mathrm{PL}(\text{edge\_type}:v)$$</div>
+        <p class="note"><b>apply = 多跳魔法</b>：先算出集合 \(E\)（"我在纽约的朋友"），再把每个结果当新种子查下一类边——"我在纽约的朋友<em>的雇主</em>"这种二跳查询就此成立。</p>
+      </div>
+    </div>
+    <div>
+      <div class="box">
+        <span class="lbl a">架构</span>
+        <div class="flow">
+          <div class="fbox">自然语言 query</div><div class="far" style="--acc:var(--a1)">→</div>
+          <div class="fbox">Query Parser<small>解析成算子树</small></div><div class="far" style="--acc:var(--a1)">→</div>
+          <div class="fbox hi" style="--acc:var(--a1)">算子执行引擎<small>and / or / apply</small></div>
+        </div>
+        <div class="flow">
+          <div class="fbox hi" style="--acc:var(--a1)">内存倒排索引<small>posting list 按 static rank 排序</small></div><div class="far" style="--acc:var(--a1)">→</div>
+          <div class="fbox">Leaf × 数千分片<small>并行执行集合运算</small></div><div class="far" style="--acc:var(--a1)">→</div>
+          <div class="fbox">Aggregator<small>汇总 · 取 top-K</small></div>
+        </div>
+        <p class="note">示例算子树：<b>(apply (and friend:10003 lives-in:NYC) works-at)</b>。<br>排序靠 <b>static rank</b>（与查询无关的重要性分），让每条 posting list 支持"取 top-K 而非全量遍历"。</p>
+      </div>
+      <div class="box tight">
+        <span class="lbl p">在骨架中的位置</span>
+        <p class="note">占据<b>② 召回</b>的地基：把"图遍历"改造成"倒排索引上的集合运算"，统一取代了 Facebook 内部多套关键词搜索后端。static rank 是③排序的雏形，查询树解析是①查询理解的早期形态。</p>
+      </div>
+    </div>
+  </div>
+  <div class="refline">原文：<a href="https://www.vldb.org/pvldb/vol6/p1150-curtiss.pdf">Unicorn: A System for Searching the Social Graph (VLDB 2013)</a> · <a href="https://engineering.fb.com/2013/03/06/core-infra/under-the-hood-building-out-the-infrastructure-for-graph-search/">Meta 工程博客图解</a></div>
+</section>
+
+<!-- ============ Unicorn ② ============ -->
+<section class="slide" style="--acc:var(--a1)">
+  <div class="kicker"><b>第一幕</b> · Unicorn 的规模与遗产</div>
+  <h2>不只是 2013 年的产物，更是后来者的宿主</h2>
+  <div class="stats" style="--acc:var(--a1)">
+    <div class="stat"><div class="num">万亿级</div><div class="cap">索引边数，连接百亿级用户与实体</div></div>
+    <div class="stat"><div class="num">数十亿</div><div class="cap">每日查询量，延迟数百毫秒级</div></div>
+    <div class="stat"><div class="num">数千台</div><div class="cap">商用服务器分片部署</div></div>
+    <div class="stat"><div class="num">秒级</div><div class="cap">索引新鲜度（每天 25 亿新内容 + 27 亿点赞实时入索引）</div></div>
+  </div>
+  <div class="cols">
+    <div class="box">
+      <span class="lbl i">符号时代的世界观</span>
+      <p>相关性是<strong>离散、精确、可解释</strong>的：一个文档要么包含词条、要么不包含；一个人要么是你朋友、要么不是。这套世界观让系统极快、极可控——但它有一个致命盲区，下一页揭晓。</p>
+    </div>
+    <div class="box">
+      <span class="lbl p">贯穿全片的伏笔</span>
+      <p>Unicorn 没有被后来的向量检索淘汰——<strong>EBR（2020）和 Que2Search（2021）都选择把向量检索"塞进" Unicorn 的倒排索引框架里做混合检索</strong>，而不是另起炉灶。工业系统的演进方式是"器官移植"，不是"推倒重建"。记住这一点，第二幕会反复用到。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 幕间：天花板 ============ -->
+<section class="slide" style="--acc:var(--a1)">
+  <div class="kicker"><b>第一幕</b> · 幕间 · 符号时代的天花板</div>
+  <h2>语义鸿沟 <span class="en">The Semantic Gap</span></h2>
+  <p class="sub">你搜"讲鬼故事的地方"，而完美答案叫"万圣节恐怖夜活动"——<em>一个字都不重合，倒排索引永远召回不了它。</em></p>
+  <div class="cols">
+    <div class="box">
+      <span class="lbl i">问题的本质</span>
+      <p>倒排索引把"相关"定义为<strong>字面命中</strong>（token 精确匹配）。但人类语言里，同一个意图有无数种表达（同义、缩写、多语言、错拼、隐喻）。词汇不匹配（lexical mismatch）不是长尾问题——它是<strong>召回环节的系统性盲区</strong>。</p>
+      <p class="note" style="margin-top:10px">补丁方案（同义词表、查询扩展规则）治标不治本：规则永远追不上语言的组合爆炸。</p>
+    </div>
+    <div class="box">
+      <span class="lbl n">需要一次世界观革命</span>
+      <p>如果"相关性"不再定义为字面命中，而是定义为<strong>某个连续空间中的距离</strong>呢？</p>
+      <div class="flow" style="margin-top:14px">
+        <div class="fbox">符号时代<small>相关 = 词条命中<br>离散 · 布尔</small></div>
+        <div class="far" style="--acc:var(--a2);font-size:22px">⟹</div>
+        <div class="fbox hi" style="--acc:var(--a2)">嵌入时代<small>相关 = 空间距离<br>连续 · 可学习</small></div>
+      </div>
+      <p class="note">这需要三件事同时成熟：能学出好向量的<b>模型</b>（预训练 LM）、能训练它的<b>目标函数</b>（对比学习）、能在十亿向量里毫秒级找近邻的<b>索引</b>（ANN）。2020 年，三者齐备。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 第二幕 开场 ============ -->
+<section class="slide act-open" id="act2" style="--acc:var(--a2)">
+  <div class="big-num">ACT II · 2020</div>
+  <h1 style="color:var(--a2)">第二幕 · 嵌入时代</h1>
+  <p class="tag-line">召回环节被向量替换。<em>相关性 = 空间距离。</em><br>这一幕要讲清三个"为什么"：为什么双塔、难负例为何关键、ANN 为何可行。</p>
+  <div class="acts-row">
+    <span class="pill on" style="--acc:var(--a2)">Facebook EBR · KDD 2020</span>
+    <span class="pill on" style="--acc:var(--a2)">DPR · EMNLP 2020</span>
+    <span class="pill on" style="--acc:var(--a2)">ColBERT · SIGIR 2020</span>
+    <span class="pill on" style="--acc:var(--a2)">Que2Search · KDD 2021</span>
+  </div>
+</section>
+
+<!-- ============ EBR ① 直觉+双塔 ============ -->
+<section class="slide" style="--acc:var(--a2)">
+  <div class="kicker"><b>第二幕</b> · Facebook EBR（KDD 2020, arXiv:2006.11632）</div>
+  <h2>相关性 = 空间距离 <span class="en">Embedding-Based Retrieval</span></h2>
+  <div class="cols">
+    <div>
+      <div class="box">
+        <span class="lbl i">直觉</span>
+        <p>把 query 和 document 都映射进<strong>同一个向量空间</strong>，让语义相近的东西靠得近。检索从"字符串匹配"变成"找最近的邻居"——<em>即使一个字都不重合，只要语义近，也能被召回</em>。语义鸿沟就此跨越。</p>
+      </div>
+      <div class="box">
+        <span class="lbl m">为什么是"双塔"</span>
+        <div class="formula">$$D(q,d) = 1-\cos\big(u(q),\,v(d)\big)$$</div>
+        <p class="note">query 塔 \(u(\cdot)\) 与 document 塔 \(v(\cdot)\) <b>各自独立编码</b>、互不相见——这不是精度上的最优，而是<b>工程上的必然</b>：只有独立编码，document 向量才能全部离线预计算、建成索引；在线只需算一次 query 向量 + 一次近邻查找。</p>
+      </div>
+      <div class="box tight">
+        <span class="lbl m">统一嵌入 Unified Embedding</span>
+        <p class="note">EBR 的"统一"指输入不只是文本：query 塔吃进<b>搜索者位置、社交图谱嵌入</b>等上下文；document 塔同理。社交搜索的相关性天然是"文本 + 人 + 场景"的函数。</p>
+      </div>
+    </div>
+    <div>
+      <div class="box">
+        <span class="lbl m">训练目标：Triplet Loss</span>
+        <div class="formula">$$L=\sum_{i=1}^{N}\max\Big(0,\;D(q^{(i)},d^{(i)}_+)-D(q^{(i)},d^{(i)}_-)+m\Big)$$</div>
+        <p class="note">\(d_+\)：点击过的正例；\(d_-\)：负例；\(m\)：margin 间隔。<br><b>它在优化什么</b>：让正例距离比负例至少近 \(m\)。一旦差距超过 \(m\)，该样本梯度归零、不再学习——模型注意力被自动集中到<em>难分的样本</em>上。</p>
+        <p class="note">margin 是极敏感的超参数：取值不同可造成 <b>5%–10%</b> 的 KNN recall 波动。</p>
+      </div>
+      <div class="box tight">
+        <span class="lbl p">在骨架中的位置</span>
+        <div class="skel" style="margin:10px 0 4px">
+          <div class="sk" style="font-size:13px;padding:9px 4px">查询理解</div><div class="skar">→</div>
+          <div class="sk hl" data-tag="被替换" style="font-size:13px;padding:9px 4px">召回</div><div class="skar">→</div>
+          <div class="sk" style="font-size:13px;padding:9px 4px">排序</div><div class="skar">→</div>
+          <div class="sk" style="font-size:13px;padding:9px 4px">呈现</div><div class="skar">→</div>
+          <div class="sk" style="font-size:13px;padding:9px 4px">评估</div>
+        </div>
+        <p class="note">②召回从"纯布尔匹配"升级为"ANN + 倒排"混合；cosine 相似度同时作为新特征喂给③排序。</p>
+      </div>
+    </div>
+  </div>
+  <div class="refline">原文：<a href="https://arxiv.org/abs/2006.11632">Embedding-based Retrieval in Facebook Search (KDD 2020)</a></div>
+</section>
+
+<!-- ============ EBR ② 难负例 ============ -->
+<section class="slide" style="--acc:var(--a2)">
+  <div class="kicker"><b>第二幕</b> · EBR 最重要的工程洞察</div>
+  <h2>难负例为何关键 <span class="en">Hard Negative Mining</span></h2>
+  <p class="sub">全文最值得背下来的一页：<em>负例的分布，必须匹配线上检索时真实面对的候选分布。</em></p>
+  <div class="cols">
+    <div>
+      <div class="box tight">
+        <span class="lbl i">两个失败的极端</span>
+        <p class="note"><b>只用"曝光未点击"当负例</b> → 训练集里全是"字面沾边但没被点"的<em>难例</em>，而线上候选池 99% 是毫不相关的<em>易例</em>——训练/服务分布错配，recall 显著变差。</p>
+        <p class="note"><b>只用随机负例</b> → 模型只需学会"字面搭不搭边"就能把损失降到很低，永远学不会区分"看起来沾边但不该召回"的高相似候选。</p>
+      </div>
+      <div class="box tight">
+        <span class="lbl m">EBR 的配方</span>
+        <ul class="clean">
+          <li><b>在线挖掘</b>：batch 内借用别的 query 的正例当难负例（每条取 k=2 最优）。</li>
+          <li><b>离线挖掘</b>：用上一版模型对全库做 ANN，取排名 <em>101–500 名</em>当难负例——不取最难的前几名，因为那里常是漏标的假负例。</li>
+          <li><b>混合比例</b>：易 : 难 ≈ <em>100 : 1</em> 效果最好。</li>
+        </ul>
+      </div>
+    </div>
+    <div>
+      <div class="svgwrap">
+      <svg viewBox="0 0 520 300" width="100%">
+        <text x="260" y="24" fill="#e9edf5" font-size="14" font-weight="700" text-anchor="middle">向量空间视角：负例难度 = 与 query 的距离</text>
+        <circle cx="260" cy="165" r="118" fill="none" stroke="#273049" stroke-dasharray="4 4"/>
+        <circle cx="260" cy="165" r="58" fill="none" stroke="#3fc6d0" stroke-dasharray="4 4" opacity=".7"/>
+        <circle cx="260" cy="165" r="9" fill="#ffd479"/>
+        <text x="260" y="145" fill="#ffd479" font-size="13" font-weight="700" text-anchor="middle">query</text>
+        <circle cx="292" cy="150" r="6" fill="#4ade80"/><text x="308" y="146" fill="#4ade80" font-size="12">正例</text>
+        <circle cx="225" cy="200" r="6" fill="#e879a8"/><circle cx="300" cy="205" r="6" fill="#e879a8"/>
+        <text x="262" y="232" fill="#e879a8" font-size="12" text-anchor="middle">难负例（101–500 名）</text>
+        <circle cx="120" cy="90" r="5" fill="#6b7690"/><circle cx="400" cy="80" r="5" fill="#6b7690"/><circle cx="90" cy="240" r="5" fill="#6b7690"/><circle cx="430" cy="235" r="5" fill="#6b7690"/><circle cx="180" cy="55" r="5" fill="#6b7690"/><circle cx="360" cy="272" r="5" fill="#6b7690"/>
+        <text x="112" y="70" fill="#98a3b8" font-size="12">易负例（占线上候选绝大多数）</text>
+        <text x="260" y="292" fill="#6b7690" font-size="12" text-anchor="middle">训练配方 ≈ 易:难 = 100:1，模拟线上真实分布</text>
+      </svg>
+      </div>
+      <div class="stats" style="--acc:var(--a2)">
+        <div class="stat"><div class="num">+3.4%</div><div class="cap">离线难负例二阶段模型的召回率提升</div></div>
+        <div class="stat"><div class="num">4%</div><div class="cap">仅用"难正例"训练，用点击数据 4% 的量达到相近召回</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ EBR ③ ANN + Hybrid ============ -->
+<section class="slide" style="--acc:var(--a2)">
+  <div class="kicker"><b>第二幕</b> · 让向量召回跑进毫秒级</div>
+  <h2>ANN 为何可行 + 全栈混合检索</h2>
+  <div class="cols">
+    <div>
+      <div class="box tight">
+        <span class="lbl i">HNSW：多层小世界图</span>
+        <p class="note">把向量组织成多层图——上层稀疏、边长（像<b>坐飞机跨城</b>），下层稠密、边短（像<b>市内公交</b>）。查询从顶层贪心走向更近邻居，逐层下沉细化。小世界性质保证 \(O(\log N)\) 步就能逼近目标，避免线性扫描。</p>
+      </div>
+      <div class="box tight">
+        <span class="lbl i">IVF-PQ：先分街区，再查表打分</span>
+        <p class="note"><b>IVF 粗量化</b>：k-means 把全库聚成数千簇（分"街区"），查询只进最近的几个簇。<br><b>PQ 乘积量化</b>：把高维向量切成子段、各自用小码本压缩成几个字节，距离计算变成查表——内存与算力同时骤降。EBR 使用 Faiss 的粗量化 + OPQ 组合。</p>
+        <p class="note"><b>共同哲学</b>：用可控的精度损失，换指数级的速度提升。</p>
+      </div>
+    </div>
+    <div>
+      <div class="box">
+        <span class="lbl a">Hybrid：向量塞进倒排索引</span>
+        <div class="flow">
+          <div class="fbox">query + 上下文</div><div class="far">→</div>
+          <div class="fbox">Query 塔<small>实时推理</small></div><div class="far">→</div>
+          <div class="fbox hi">Unicorn 混合召回<small>布尔匹配 ∥ ANN 检索<br>同一套索引框架</small></div><div class="far">→</div>
+          <div class="fbox">排序层<small>cosine 作为新特征</small></div>
+        </div>
+        <p class="note">EBR <b>没有</b>另建一套向量检索系统，而是把 embedding 编码成新 term 融入 Unicorn——避免维护两套候选、两套索引。这就是第一幕埋的伏笔：<em>老骨架成为新器官的宿主</em>。人工标注对新召回结果做相关性评估，再回流训练——⑤评估闭环已具雏形。</p>
+      </div>
+      <div class="stats" style="--acc:var(--a2)">
+        <div class="stat"><div class="num">≈+18%</div><div class="cap">Events 垂类线上召回率提升（统一嵌入 vs 纯文本）</div></div>
+        <div class="stat"><div class="num">≈+16%</div><div class="cap">Groups 垂类线上召回率提升</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="refline">原文：<a href="https://arxiv.org/abs/2006.11632">EBR (KDD 2020)</a> · ANN 背景：HNSW (Malkov &amp; Yashunin) / Faiss IVF-PQ</div>
+</section>
+
+<!-- ============ DPR ============ -->
+<section class="slide" style="--acc:var(--a2)">
+  <div class="kicker"><b>第二幕</b> · DPR（Karpukhin et al., EMNLP 2020, arXiv:2004.04906）</div>
+  <h2>In-batch Negatives：免费的午餐 <span class="en">Dense Passage Retrieval</span></h2>
+  <div class="cols">
+    <div>
+      <div class="box">
+        <span class="lbl i">直觉</span>
+        <p>与 EBR 同年、殊途同归的学术里程碑：只用几万条问答对训练双塔，就在开放域问答上<strong>击败打磨了几十年的 BM25</strong>。它的训练技巧朴素到惊人——<em>同一个 batch 里，别人的正确答案就是我的负例</em>，无需任何负例挖掘流水线。</p>
+      </div>
+      <div class="box">
+        <span class="lbl m">数学</span>
+        <div class="formula">$$\mathrm{sim}(q,p)=E_Q(q)^{\top}E_P(p)$$</div>
+        <div class="formula">$$L=-\log\frac{\exp\big(\mathrm{sim}(q_i,p_i)\big)}{\sum_{j=1}^{B}\exp\big(\mathrm{sim}(q_i,p_j)\big)}$$</div>
+        <p class="note"><b>它在优化什么</b>：把检索变成 batch 内的多分类——"这 \(B\) 个段落里谁是我的"。一次前向传播免费获得 \(B-1\) 个负例，batch 越大负例越丰富。实际训练 B=128，再混入 1 个 BM25 难负例提升区分度。</p>
+      </div>
+    </div>
+    <div>
+      <div class="box tight">
+        <span class="lbl p">在骨架中的位置</span>
+        <p class="note">改造开放域 QA 的<b>②召回</b>：稠密向量取代 BM25，成为下游 Reader 的供给。这条 <b>Retriever → Reader</b> 链路正是第三幕 RAG 范式的直接前身——记住它。</p>
+      </div>
+      <div class="stats" style="--acc:var(--a2)">
+        <div class="stat"><div class="num">78.4%</div><div class="cap">NQ Top-20 检索准确率，vs BM25 的 59.1%（+19.3pp）</div></div>
+        <div class="stat"><div class="num">41.5</div><div class="cap">端到端 QA Exact Match，超越 ORQA 的 33.3，当时 SOTA</div></div>
+      </div>
+      <div class="box tight">
+        <span class="lbl i">EBR vs DPR 一句话</span>
+        <p class="note">EBR：工业视角，强调全栈工程与难负例配比；DPR：学术视角，强调 in-batch 的简单有效。两者共同确立了<b>双塔向量召回范式</b>。</p>
+      </div>
+    </div>
+  </div>
+  <div class="refline">原文：<a href="https://arxiv.org/abs/2004.04906">Dense Passage Retrieval for Open-Domain QA (EMNLP 2020)</a></div>
+</section>
+
+<!-- ============ Que2Search ============ -->
+<section class="slide" style="--acc:var(--a2)">
+  <div class="kicker"><b>第二幕</b> · Que2Search（Facebook, KDD 2021）</div>
+  <h2>给双塔换脑子 <span class="en">XLM-R · 多模态 · 课程学习</span></h2>
+  <div class="cols">
+    <div>
+      <div class="box tight">
+        <span class="lbl i">直觉</span>
+        <p class="note">EBR 用"字符 n-gram + 浅层网络"近似语义，对短查询、多语言、带图的电商场景（Marketplace）力不从心。Que2Search 把词袋换成<b>跨语言预训练模型 XLM/XLM-R</b>，把商品图片（GrokNet）也编进同一空间，并用注意力对多路特征做可学习的融合：</p>
+        <div class="formula">$$w=\mathrm{softmax}\big(\mathrm{proj}(\psi_1\Vert\cdots\Vert\psi_N)\big),\qquad f=\sum_i w_i\,\psi_i$$</div>
+        <p class="note">短 query 更依赖 3-gram、长 query 更依赖 XLM——通道权重 \(w\) 让模型自己决定信谁。</p>
+      </div>
+      <div class="box tight">
+        <span class="lbl m">两阶段课程学习</span>
+        <div class="formula">$$\text{阶段一：}\; L_i=-\log\frac{e^{s\cos(q_i,d_i)}}{\sum_{j=1}^{B}e^{s\cos(q_i,d_j)}}$$</div>
+        <div class="formula">$$\text{阶段二：}\; n^{q_i}=\arg\max_{j\neq i}\cos(q_i,d_j),\;\; L_i=\max\big(0,\,\cos(q_i,d_{n^{q_i}})-\cos(q_i,d_i)+m\big)$$</div>
+        <p class="note">先用 batch 内负例的 softmax（缩放系数 s≈15–20）训到收敛，<b>再</b>挖 batch 内最难负例用 margin loss 精调（m≈0.1–0.2）。顺序不可颠倒——先易后难，正是"课程"二字的含义，也治好了 EBR 难负例调参易翻车的痛点。</p>
+      </div>
+    </div>
+    <div>
+      <div class="box tight">
+        <span class="lbl a">架构与多任务</span>
+        <p class="note">Query 塔：3-gram 哈希 + 国家 embedding + 2 层 XLM，<b>CPU 上 P99 延迟 1.5ms 以内</b>（在线实时）；Doc 塔：6 层 XLM-R + 图片向量（多图用 Deep Sets 聚合，离线预计算）。额外的多任务头：用 doc 向量预测"它历史上被哪些 query 搜到过"（4.5 万类多标签）——逼模型学到商品与搜索意图的本质关联。</p>
+      </div>
+      <div class="box tight">
+        <span class="lbl p">在骨架中的位置</span>
+        <p class="note">同时触及三个环节：<b>①查询理解</b>（XLM 语义表示）、<b>②召回</b>（接入 Unicorn ANN）、<b>③排序</b>（cosine 作为 GBDT 粗排与深度精排的强特征）。预训练语言模型自此正式入栈——第三幕 LLM 全面接管的前奏。</p>
+      </div>
+      <div class="stats" style="--acc:var(--a2)">
+        <div class="stat"><div class="num">+5%</div><div class="cap">离线相关性绝对提升</div></div>
+        <div class="stat"><div class="num">+4%</div><div class="cap">线上用户参与度提升</div></div>
+        <div class="stat"><div class="num">1.5ms</div><div class="cap">Query 塔 P99 推理延迟（CPU）</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="refline">原文：<a href="https://dl.acm.org/doi/10.1145/3447548.3467127">Que2Search (KDD 2021, ACM DL)</a> · <a href="https://research.facebook.com/publications/que2search-fast-and-accurate-query-and-document-understanding-for-search-at-facebook/">Meta Research 页面</a></div>
+</section>
+
+<!-- ============ 双塔 vs CE vs ColBERT ============ -->
+<section class="slide" style="--acc:var(--a2)">
+  <div class="kicker"><b>第二幕</b> · 三种范式的光谱</div>
+  <h2>双塔 · 交叉编码器 · ColBERT <span class="en">速度与精度的光谱</span></h2>
+  <div class="svgwrap">
+  <svg viewBox="0 0 1150 285" width="100%">
+    <g font-size="13">
+      <!-- Bi-encoder -->
+      <rect x="30" y="40" width="330" height="200" rx="14" fill="#151a26" stroke="#3fc6d0"/>
+      <text x="195" y="66" fill="#3fc6d0" font-size="15" font-weight="800" text-anchor="middle">双塔 Bi-Encoder</text>
+      <rect x="60" y="85" width="100" height="40" rx="8" fill="#1a2030" stroke="#273049"/><text x="110" y="109" fill="#e9edf5" text-anchor="middle">Enc(q)</text>
+      <rect x="230" y="85" width="100" height="40" rx="8" fill="#1a2030" stroke="#273049"/><text x="280" y="109" fill="#e9edf5" text-anchor="middle">Enc(d)</text>
+      <line x1="110" y1="125" x2="185" y2="165" stroke="#3fc6d0"/><line x1="280" y1="125" x2="205" y2="165" stroke="#3fc6d0"/>
+      <circle cx="195" cy="172" r="14" fill="none" stroke="#3fc6d0"/><text x="195" y="177" fill="#3fc6d0" text-anchor="middle">·</text>
+      <text x="195" y="210" fill="#98a3b8" text-anchor="middle">单一点积 · d 可全量预计算</text>
+      <text x="195" y="230" fill="#4ade80" text-anchor="middle" font-weight="700">快 · 十亿级候选 · 精度上限低</text>
+      <!-- ColBERT -->
+      <rect x="410" y="40" width="330" height="200" rx="14" fill="#151a26" stroke="#ffd479"/>
+      <text x="575" y="66" fill="#ffd479" font-size="15" font-weight="800" text-anchor="middle">ColBERT · Late Interaction</text>
+      <rect x="440" y="85" width="100" height="40" rx="8" fill="#1a2030" stroke="#273049"/><text x="490" y="103" fill="#e9edf5" text-anchor="middle">Enc(q)</text><text x="490" y="118" fill="#98a3b8" font-size="11" text-anchor="middle">token 级向量组</text>
+      <rect x="610" y="85" width="100" height="40" rx="8" fill="#1a2030" stroke="#273049"/><text x="660" y="103" fill="#e9edf5" text-anchor="middle">Enc(d)</text><text x="660" y="118" fill="#98a3b8" font-size="11" text-anchor="middle">token 级 · 可预计算</text>
+      <line x1="500" y1="130" x2="560" y2="165" stroke="#ffd479"/><line x1="530" y1="128" x2="575" y2="163" stroke="#ffd479"/><line x1="650" y1="130" x2="592" y2="165" stroke="#ffd479"/><line x1="620" y1="128" x2="580" y2="163" stroke="#ffd479"/>
+      <text x="575" y="182" fill="#ffd479" text-anchor="middle" font-weight="700">MaxSim 词级交互</text>
+      <text x="575" y="210" fill="#98a3b8" text-anchor="middle">词级细节保留 · 交互推迟到最后</text>
+      <text x="575" y="230" fill="#ffd479" text-anchor="middle" font-weight="700">折中：快 100× 于 CE · 近 CE 精度</text>
+      <!-- Cross-encoder -->
+      <rect x="790" y="40" width="330" height="200" rx="14" fill="#151a26" stroke="#e879a8"/>
+      <text x="955" y="66" fill="#e879a8" font-size="15" font-weight="800" text-anchor="middle">交叉编码器 Cross-Encoder</text>
+      <rect x="855" y="85" width="200" height="40" rx="8" fill="#1a2030" stroke="#273049"/><text x="955" y="103" fill="#e9edf5" text-anchor="middle">Enc(q ⊕ d)</text><text x="955" y="118" fill="#98a3b8" font-size="11" text-anchor="middle">拼接后逐层全交互 attention</text>
+      <line x1="955" y1="125" x2="955" y2="165" stroke="#e879a8"/>
+      <rect x="905" y="165" width="100" height="32" rx="8" fill="#1a2030" stroke="#e879a8"/><text x="955" y="185" fill="#e879a8" text-anchor="middle">score</text>
+      <text x="955" y="215" fill="#98a3b8" text-anchor="middle">每个 (q,d) 对都要完整前向 · 无法预计算</text>
+      <text x="955" y="233" fill="#e879a8" text-anchor="middle" font-weight="700">最准 · 最慢 · 只配精排小候选</text>
+    </g>
+    <text x="575" y="272" fill="#6b7690" font-size="13" text-anchor="middle">← 更快 · 候选更多　　　　　速度-精度光谱　　　　　更准 · 候选更少 →</text>
+  </svg>
+  </div>
+  <div class="cols">
+    <div class="box tight">
+      <span class="lbl m">ColBERT 的 MaxSim</span>
+      <div class="formula">$$S_{q,d}=\sum_{i=1}^{N}\max_{j=1..M}\;E_{q_i}\cdot E_{d_j}^{\top}$$</div>
+      <p class="note">每个 query token 在文档所有 token 里找<b>最佳落脚点</b>（max），再求和。文档端 token 向量离线预计算——保住词级交互的精度，摊掉重复前向的开销。比 BERT 交叉编码器<b>快两个数量级、省四个数量级 FLOPs</b>，MS MARCO MRR@10 ≈ 0.36（与 CE 相当）。</p>
+    </div>
+    <div class="box tight">
+      <span class="lbl p">这组权衡决定了骨架的形状</span>
+      <p class="note">正因为"能预计算的不够准、够准的不能预计算"，骨架必须是<b>级联漏斗</b>：双塔/倒排管召回（快而粗），交叉编码器管精排（慢而准），ColBERT 插在中间两头通吃——它既能当高效精排器，也因剪枝友好可下沉做端到端召回。</p>
+    </div>
+  </div>
+  <div class="refline">原文：<a href="https://arxiv.org/abs/2004.12832">ColBERT (SIGIR 2020)</a></div>
+</section>
+
+<!-- ============ 级联 + 第二幕小结 ============ -->
+<section class="slide" style="--acc:var(--a2)">
+  <div class="kicker"><b>第二幕</b> · 小结</div>
+  <h2>级联漏斗成型：骨架的 2021 版</h2>
+  <div class="svgwrap">
+  <svg viewBox="0 0 1150 250" width="100%">
+    <defs><marker id="fun" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9z" fill="#3fc6d0"/></marker></defs>
+    <g font-size="13.5">
+      <polygon points="40,40 300,40 280,210 60,210" fill="#3fc6d0" opacity=".12" stroke="#3fc6d0"/>
+      <text x="170" y="70" fill="#3fc6d0" font-weight="800" text-anchor="middle" font-size="15">召回</text>
+      <text x="170" y="95" fill="#e9edf5" text-anchor="middle">十亿 → 数千</text>
+      <text x="170" y="120" fill="#98a3b8" text-anchor="middle">倒排布尔 ∥ 双塔 ANN</text>
+      <text x="170" y="140" fill="#98a3b8" text-anchor="middle">（hybrid 混合检索）</text>
+      <text x="170" y="170" fill="#6b7690" text-anchor="middle">单候选成本最低</text>
+      <polygon points="380,55 620,55 605,195 395,195" fill="#ffd479" opacity=".12" stroke="#ffd479"/>
+      <text x="500" y="85" fill="#ffd479" font-weight="800" text-anchor="middle" font-size="15">粗排 L1</text>
+      <text x="500" y="110" fill="#e9edf5" text-anchor="middle">数千 → 数百</text>
+      <text x="500" y="135" fill="#98a3b8" text-anchor="middle">轻量 GBDT / 双塔打分</text>
+      <text x="500" y="160" fill="#98a3b8" text-anchor="middle">cosine 是强特征</text>
+      <polygon points="700,70 920,70 908,180 712,180" fill="#e879a8" opacity=".12" stroke="#e879a8"/>
+      <text x="810" y="100" fill="#e879a8" font-weight="800" text-anchor="middle" font-size="15">精排 L2</text>
+      <text x="810" y="125" fill="#e9edf5" text-anchor="middle">数百 → 数十</text>
+      <text x="810" y="150" fill="#98a3b8" text-anchor="middle">深度模型 / CE / ColBERT</text>
+      <rect x="990" y="90" width="130" height="70" rx="12" fill="#151a26" stroke="#4ade80"/>
+      <text x="1055" y="120" fill="#4ade80" font-weight="800" text-anchor="middle">结果呈现</text>
+      <text x="1055" y="142" fill="#98a3b8" text-anchor="middle" font-size="12">十条蓝链</text>
+      <line x1="300" y1="125" x2="375" y2="125" stroke="#3fc6d0" stroke-width="2" marker-end="url(#fun)"/>
+      <line x1="620" y1="125" x2="695" y2="125" stroke="#3fc6d0" stroke-width="2" marker-end="url(#fun)"/>
+      <line x1="920" y1="125" x2="985" y2="125" stroke="#3fc6d0" stroke-width="2" marker-end="url(#fun)"/>
+      <text x="580" y="235" fill="#6b7690" text-anchor="middle" font-size="13">候选数量与单候选算力成反比 —— 总算力预算守恒</text>
+    </g>
+  </svg>
+  </div>
+  <div class="cols">
+    <div class="box tight">
+      <span class="lbl i">第二幕换掉了什么</span>
+      <p class="note"><b>②召回</b>：布尔匹配 → 向量 ANN + 倒排混合（EBR/DPR）。<b>①查询理解</b>：词袋 → 预训练 LM 表示（Que2Search）。<b>③排序</b>：手工特征 → 深度模型 + 相似度特征，ColBERT 给出第三条路。骨架没变，器官换了两个半。</p>
+    </div>
+    <div class="box tight">
+      <span class="lbl n">遗留问题 → 第三幕的引线</span>
+      <p class="note">双塔的语义理解仍然"浅"：短 query 歧义、复杂意图、世界知识都超出 6 层 XLM-R 的能力。<em>如果把真正"读过整个互联网"的模型（LLM）放进这张图，会发生什么？</em>——第三幕：LLM 攻占骨架的每一个环节。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 第三幕 开场 ============ -->
+<section class="slide act-open" id="act3" style="--acc:var(--a3)">
+  <div class="big-num">ACT III · 2022 →</div>
+  <h1 style="color:var(--a3)">第三幕 · LLM 时代</h1>
+  <p class="tag-line">六大主题不再并列——<em>逐个挂到骨架的对应位置。</em><br>看 LLM 如何攻占一条查询旅程的每一站。</p>
+  <div class="skel" style="margin-top:36px;--acc:var(--a3)">
+    <div class="sk hl" data-tag="查询理解 ×LLM"><span style="font-size:14px">① 查询理解</span><small>HyDE · Query2Doc<br>Query Fan-out</small></div><div class="skar">→</div>
+    <div class="sk hl" data-tag="内容理解 + 生成式检索"><span style="font-size:14px">② 召回 / 索引</span><small>LLM 嵌入 · 语义 ID<br>DSI：索引 = 参数</small></div><div class="skar">→</div>
+    <div class="sk hl" data-tag="蒸馏"><span style="font-size:14px">③ 排序</span><small>RankGPT → RankZephyr<br>塞进 10ms 预算</small></div><div class="skar">→</div>
+    <div class="sk hl" data-tag="RAG"><span style="font-size:14px">④ 结果呈现</span><small>十条蓝链<br>→ 生成式答案</small></div><div class="skar">→</div>
+    <div class="sk hl" data-tag="AI as a Judge"><span style="font-size:14px">⑤ 评估闭环</span><small>LLM 标注自动化<br>反哺训练数据</small></div>
+  </div>
+</section>
+
+<!-- ============ 内容理解 ① E5-Mistral ============ -->
+<section class="slide" style="--acc:var(--a3)">
+  <div class="kicker"><b>第三幕</b> · 主题一 内容理解 1/3 · E5-Mistral</div>
+  <h2>让 LLM 直接当嵌入模型 <span class="en">Improving Text Embeddings with LLMs</span></h2>
+  <div class="cols">
+    <div>
+      <div class="box">
+        <span class="lbl i">直觉</span>
+        <p>传统路线：拿几十亿弱监督 (q,d) 对，多阶段预训练慢慢"喂"出一个懂语义的编码器。E5-Mistral 反过来：<strong>直接找一个已经"读过互联网"的 LLM（Mistral-7B）当编码器</strong>，用纯合成数据做不到 1000 步对比学习微调——<em>让博览群书的人稍加提点就去当图书管理员，而不是从零培养一个</em>。</p>
+      </div>
+      <div class="box">
+        <span class="lbl m">数学：指令化嵌入 + InfoNCE</span>
+        <div class="formula">$$h_q=\mathrm{LastToken}\Big(\mathrm{LLM}\big(\texttt{Instruct: }t\,\Vert\,\texttt{Query: }q\big)\Big)$$</div>
+        <div class="formula">$$\mathcal{L}=-\log\frac{e^{\cos(h_q,h_{d^+})/\tau}}{e^{\cos(h_q,h_{d^+})/\tau}+\sum_{d^-}e^{\cos(h_q,h_{d^-})/\tau}}$$</div>
+        <p class="note">\(t\) 是自然语言任务描述（"检索能回答该查询的段落"）。<b>妙处</b>：同一个模型骨架，只换指令前缀 \(t\)，就能服务检索、分类、聚类等上百种任务——任务定义从"训练一个新模型"降级为"写一句话"。</p>
+      </div>
+    </div>
+    <div>
+      <div class="box tight">
+        <span class="lbl a">数据流</span>
+        <div class="flow" style="--acc:var(--a3)">
+          <div class="fbox">GPT-4 级 LLM<small>合成数据生成器</small></div><div class="far">→</div>
+          <div class="fbox">(任务, query, 正例, 难负例)<small>四元组 · 93 种语言</small></div><div class="far">→</div>
+          <div class="fbox hi">Mistral-7B<small>对比学习 · 不到 1000 步</small></div>
+        </div>
+        <p class="note">连训练数据都是 LLM 合成的——<b>模型和数据双双 LLM 化</b>。混合合成 + 标注数据后，BEIR / MTEB 当时 SOTA。</p>
+      </div>
+      <div class="box tight">
+        <span class="lbl p">在骨架中的位置</span>
+        <p class="note">挂在<b>索引侧内容理解</b>：为②召回提供更强的 doc/query 编码。但 7B 模型太大无法进线上延迟预算——所以它在工业里通常当<b>教师</b>，蒸馏出线上小模型。这个"太好但太贵"的矛盾，正是主题三（蒸馏）存在的理由，也由下一页的 Gecko 直接回答。</p>
+      </div>
+      <div class="stats" style="--acc:var(--a3)">
+        <div class="stat"><div class="num">&lt;1000 步</div><div class="cap">纯合成数据微调即具竞争力</div></div>
+        <div class="stat"><div class="num">93 种</div><div class="cap">合成数据覆盖语言数</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="refline">原文：<a href="https://arxiv.org/abs/2401.00368">Improving Text Embeddings with Large Language Models (ACL 2024)</a></div>
+</section>
+
+<!-- ============ 内容理解 ② Gecko ============ -->
+<section class="slide" style="--acc:var(--a3)">
+  <div class="kicker"><b>第三幕</b> · 主题一 内容理解 2/3 · Gecko（Google DeepMind 2024）</div>
+  <h2>把 LLM 的理解力蒸进小模型 <span class="en">FRet 两步合成数据蒸馏</span></h2>
+  <div class="cols">
+    <div>
+      <div class="box">
+        <span class="lbl i">直觉</span>
+        <p>E5-Mistral 是"雇博学者当管理员"；Gecko 是<strong>"让博学者写一份详尽的分类指南（合成数据），再让一个体积小 7 倍的新人照着指南工作"</strong>——最终 256 维小模型打平 768 维大模型。蒸馏的对象不是参数或 logits，而是 <em>LLM 生成并亲自校对过的训练数据本身</em>。</p>
+      </div>
+      <div class="box">
+        <span class="lbl m">FRet 两步法</span>
+        <div class="formula">$$\text{Step 1: }(t,q)\sim\mathrm{LLM}(p)\qquad\text{Step 2: }\{c_1..c_k\}\xrightarrow{\ \mathrm{LLM}\ \text{重标注}\ }(q,\,d^+,\,\{d^-\})$$</div>
+        <p class="note"><b>Step 1</b> 解决"没有查询"：LLM 读段落 \(p\)，凭空造出任务 \(t\) 和查询 \(q\)。<br><b>Step 2</b> 解决"标签不准"：用初版模型检索候选，再让 LLM 重新裁决——<em>生成 query 时用的种子段落 \(p\) 未必是最佳正例</em>，重标注会找出更好的 \(d^+\) 和高排名假正例作难负例 \(d^-\)。呼应第二幕：难负例挖掘如今由 LLM 自动完成。</p>
+      </div>
+    </div>
+    <div>
+      <div class="box tight">
+        <span class="lbl a">数据流</span>
+        <div class="flow" style="--acc:var(--a3)">
+          <div class="fbox">网页段落 p</div><div class="far">→</div>
+          <div class="fbox">LLM 生成<small>(任务, query)</small></div><div class="far">→</div>
+          <div class="fbox">检索候选<small>初版 embedding 模型</small></div><div class="far">→</div>
+          <div class="fbox">LLM 重标注<small>选正例 · 挖难负例</small></div><div class="far">→</div>
+          <div class="fbox hi">小型双塔<small>对比学习</small></div>
+        </div>
+      </div>
+      <div class="box tight">
+        <span class="lbl p">在骨架中的位置</span>
+        <p class="note"><b>主题一与主题三的桥梁</b>：内容理解回答"用什么编码文档"，蒸馏回答"怎么让它跑得起"。Gecko 产出的模型直接构建②召回的向量索引——LLM 的语义理解力被"烧录"进召回层的延迟预算内。</p>
+      </div>
+      <div class="stats" style="--acc:var(--a3)">
+        <div class="stat"><div class="num">66.31</div><div class="cap">Gecko-768d 的 MTEB 均分，匹敌体积 7 倍的模型</div></div>
+        <div class="stat"><div class="num">256 维</div><div class="cap">Gecko-256d 超过当时所有 768 维竞品</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="refline">原文：<a href="https://arxiv.org/abs/2403.20327">Gecko: Versatile Text Embeddings Distilled from LLMs (2024)</a></div>
+</section>
+
+<!-- ============ 内容理解 ③ Semantic ID ============ -->
+<section class="slide" style="--acc:var(--a3)">
+  <div class="kicker"><b>第三幕</b> · 主题一 内容理解 3/3 · Semantic ID / TIGER</div>
+  <h2>把内容压成离散基因编码 <span class="en">RQ-VAE 语义 ID</span></h2>
+  <div class="cols">
+    <div>
+      <div class="box">
+        <span class="lbl i">直觉</span>
+        <p>传统 item ID 是不透明数字，模型对它<strong>零先验</strong>，新内容冷启动学不到东西。Semantic ID 给每个内容一串<strong>"基因编码"</strong>——把 embedding 层层压缩成几个离散数字（如 12-87-45），<em>相似内容共享前缀、后缀微调</em>。生成式模型从此可以"逐位写出"要检索的内容，而不是在亿级 ID 上做多分类。</p>
+      </div>
+      <div class="box">
+        <span class="lbl m">RQ-VAE：残差量化</span>
+        <div class="formula">$$c_i=\arg\min_k\lVert r_{i-1}-e_k^i\rVert^2,\qquad r_i=r_{i-1}-e_{c_i}^i$$</div>
+        <div class="formula">$$\mathcal{L}=\lVert z-\hat z\rVert^2+\sum_{i=1}^{m}\Big(\lVert \mathrm{sg}[r_{i-1}]-e_{c_i}^i\rVert^2+\beta\lVert r_{i-1}-\mathrm{sg}[e_{c_i}^i]\rVert^2\Big)$$</div>
+        <p class="note">像<b>十进制逐位逼近一个连续数</b>：第一位粗定位，每一位在上一位的残差里继续细分——层级天然由粗到细，语义层次免费获得。\(\mathrm{sg}\)=stop-gradient，\(\beta\)=承诺损失权重。</p>
+      </div>
+    </div>
+    <div>
+      <div class="box tight">
+        <span class="lbl a">数据流</span>
+        <div class="flow" style="--acc:var(--a3)">
+          <div class="fbox">内容/描述</div><div class="far">→</div>
+          <div class="fbox">内容编码器<small>T5/BERT embedding</small></div><div class="far">→</div>
+          <div class="fbox hi">RQ-VAE<small>多级码本量化</small></div><div class="far">→</div>
+          <div class="fbox hi">语义 ID<small>(c₁, c₂, …, cₘ)</small></div><div class="far">→</div>
+          <div class="fbox">seq2seq 自回归<small>生成下一个 item 的 ID</small></div>
+        </div>
+        <p class="note">TIGER（NeurIPS 2023）用它做生成式推荐，显著超越 SOTA 序列推荐模型；<b>冷启动 item 靠语义前缀共享获得合理曝光</b>——这是相对 ANN 的核心优势。</p>
+      </div>
+      <div class="box tight">
+        <span class="lbl p">在骨架中的位置：通往 DSI 的桥</span>
+        <p class="note">挂在<b>索引侧内容理解</b>，但它真正的历史使命是给<b>生成式检索</b>铺路：检索要变成"自回归生成"，前提是先有一套<em>可生成的、有语义结构的 ID 词表</em>。多模态侧同理——CLIP 式对比学习（4 亿图文对）把图像也拉进同一空间，再被蒸馏进线上模型。</p>
+      </div>
+    </div>
+  </div>
+  <div class="refline">原文：<a href="https://arxiv.org/abs/2305.05065">TIGER: Recommender Systems with Generative Retrieval (NeurIPS 2023)</a> · <a href="https://arxiv.org/abs/2103.00020">CLIP (2021)</a></div>
+</section>
+
+<!-- ============ 查询理解 ① HyDE ============ -->
+<section class="slide" style="--acc:var(--a3)">
+  <div class="kicker"><b>第三幕</b> · 主题二 查询理解 1/3 · HyDE（ACL 2023）</div>
+  <h2>先幻想答案，再按图索骥 <span class="en">Hypothetical Document Embeddings</span></h2>
+  <div class="cols">
+    <div>
+      <div class="box">
+        <span class="lbl i">直觉</span>
+        <p>查询短而模糊，答案长而明确。HyDE：与其苦训"查询→文档"的跨域对齐，不如<strong>先让 LLM"假装"写一篇能回答该查询的文档</strong>（哪怕细节有错），再拿它去检索<em>长得像这份草稿的真书</em>。</p>
+        <p class="note" style="margin-top:8px"><b>为什么有效——"答案空间更稠密"</b>：真实文档彼此的语义相似性，是无监督对比编码器天然擅长的"文档-文档"任务；而"查询-文档"跨域匹配需要昂贵的标注去学。HyDE 用 LLM 把难任务转换成了易任务。</p>
+      </div>
+      <div class="box">
+        <span class="lbl m">数学</span>
+        <div class="formula">$$\hat{\mathbf v}_q=\frac{1}{N+1}\Big[\sum_{k=1}^{N}f(\hat d_k)+f(q)\Big]$$</div>
+        <p class="note">采样 \(N\) 篇 LLM 假设文档 \(\hat d_k\)，经无监督编码器 \(f\)（Contriever）取平均——即对"生成分布下的文档向量期望"做蒙特卡洛估计。编码器的稠密瓶颈天然<b>过滤掉幻觉细节</b>，保留语义主干。全程零相关性标注。</p>
+      </div>
+    </div>
+    <div>
+      <div class="box tight">
+        <span class="lbl a">数据流</span>
+        <div class="flow" style="--acc:var(--a3)">
+          <div class="fbox">query</div><div class="far">→</div>
+          <div class="fbox hi">LLM<small>"写一段回答它的文章"</small></div><div class="far">→</div>
+          <div class="fbox">假设文档 ×N<small>可含事实错误</small></div><div class="far">→</div>
+          <div class="fbox">编码 + 平均</div><div class="far">→</div>
+          <div class="fbox">向量检索<small>返回真实文档</small></div>
+        </div>
+      </div>
+      <div class="stats" style="--acc:var(--a3)">
+        <div class="stat"><div class="num">44.5→61.3</div><div class="cap">TREC DL19 nDCG@10（Contriever → +HyDE），超过有监督 DPR/ANCE</div></div>
+        <div class="stat"><div class="num">74.6→88.0</div><div class="cap">DL19 Recall@1k</div></div>
+      </div>
+      <div class="box tight">
+        <span class="lbl p">在骨架中的位置</span>
+        <p class="note">挂在<b>①查询理解</b>，是<b>冷启动利器</b>：系统上线初期无点击日志时用 HyDE 顶上；日志积累后把主流量切给有监督检索器，长尾/新兴查询继续走 HyDE——查询理解第一次拥有了"生命周期策略"，并与⑤评估闭环（日志回流）天然衔接。</p>
+      </div>
+    </div>
+  </div>
+  <div class="refline">原文：<a href="https://arxiv.org/abs/2212.10496">Precise Zero-Shot Dense Retrieval without Relevance Labels (ACL 2023)</a></div>
+</section>
+
+<!-- ============ 查询理解 ② Query2Doc + 工业蒸馏 ============ -->
+<section class="slide" style="--acc:var(--a3)">
+  <div class="kicker"><b>第三幕</b> · 主题二 查询理解 2/3 · Query2Doc 与工业落地</div>
+  <h2>2000ms 的效果，16ms 的预算 <span class="en">Query Expansion → Distillation</span></h2>
+  <div class="cols">
+    <div>
+      <div class="box tight">
+        <span class="lbl i">Query2Doc：HyDE 的工业友好版</span>
+        <div class="formula">$$q^+=\mathrm{concat}\big(\{q\}\times n,\;d'\big),\quad n=5$$</div>
+        <p class="note">不用伪文档<b>替换</b>查询，而是与原查询<b>拼接</b>（BM25 下把 \(q\) 重复 5 次配平权重）：原 query 锚住真实意图，伪文档 \(d'\) 补词汇鸿沟。即插即用，倒排/向量两条召回路皆兼容。实验证实"拼接"优于"纯伪文档"。</p>
+        <div class="stats" style="--acc:var(--a3);margin-bottom:4px">
+          <div class="stat"><div class="num">51.2→66.2</div><div class="cap">BM25 + query2doc 的 DL19 nDCG@10</div></div>
+        </div>
+      </div>
+      <div class="box tight">
+        <span class="lbl n">但是——延迟账单</span>
+        <p class="note">论文 Limitation 亲自算账：单次 LLM 生成调用 <b>2000ms 以上</b>，而 BM25 检索本身只要 <b>16ms</b>。两个数量级的差距宣判：<em>LLM 不能站在在线路径上</em>。怎么办？</p>
+      </div>
+    </div>
+    <div>
+      <div class="box">
+        <span class="lbl m">工业答案：离线生产，蒸馏上线</span>
+        <div class="formula">$$\mathcal{L}_{\text{distill}}=-\sum_t\log P_{\text{student}}\big(y_t\mid y_{\lt t},\,q\big),\quad y=\mathrm{LLM}_{\text{teacher}}(q)$$</div>
+        <p class="note">大模型<b>离线批量</b>改写海量历史查询，(原 query, LLM 改写) 对成为监督数据，蒸出线上毫秒级小模型（小型 seq2seq / 分类器）。若教师是 cross-encoder，可用 KL 散度对齐相关性分布：\(\min D_{\mathrm{KL}}(p_{ce}\Vert p_{stu})+\alpha\mathcal{L}_{\text{cont}}\)。</p>
+        <div class="flow" style="--acc:var(--a3)">
+          <div class="fbox">查询日志</div><div class="far">→</div>
+          <div class="fbox">LLM 离线改写<small>扩展 · 纠错 · 意图</small></div><div class="far">→</div>
+          <div class="fbox">点击反馈过滤<small>筛掉坏改写</small></div><div class="far">→</div>
+          <div class="fbox hi">蒸馏小模型上线<small>毫秒级</small></div>
+        </div>
+        <p class="note"><b>注意闭环</b>：哪些改写算"好改写"由用户点击/转化数据裁决——⑤评估环节反过来精炼①查询理解的训练集。主题间的连接开始显形。</p>
+      </div>
+    </div>
+  </div>
+  <div class="refline">原文：<a href="https://arxiv.org/abs/2303.07678">Query2doc: Query Expansion with LLMs (EMNLP 2023)</a></div>
+</section>
+
+<!-- ============ 查询理解 ③ Fan-out ============ -->
+<section class="slide" style="--acc:var(--a3)">
+  <div class="kicker"><b>第三幕</b> · 主题二 查询理解 3/3 · Google AI Mode 的 Query Fan-out</div>
+  <h2>一查多发 <span class="en">从"改写一个查询"到"生成一组查询"</span></h2>
+  <div class="cols">
+    <div>
+      <div class="box">
+        <span class="lbl i">直觉</span>
+        <p>接到模糊的大任务，先在心里拆成子任务清单、多路同时调查、最后汇总成报告。Query fan-out 就是把这个过程机械化：<strong>一个复杂 query 被 LLM 分解为一组覆盖不同侧面的子查询，并发检索后由生成模型归并</strong>。这不再是"单点优化"，而是查询理解的"多点并发"。</p>
+      </div>
+      <div class="box">
+        <span class="lbl m">形式化</span>
+        <div class="formula">$$\{q_1,\dots,q_k\}=\mathrm{FanOut}_{\mathrm{LLM}}(q)$$</div>
+        <p class="note">\(k\) 由模型按需动态决定。与 rewriting 的本质区别：rewriting 是 \(q\to q'\)（一变一），fan-out 是 \(q\to\{q_i\}\)（一变多）——<b>广度优先于精度</b>，去重归并交给下游生成模型。实测均值约 9 条子查询（软件类 11.7、旅行 10.8、本地检索仅 3.8）。</p>
+      </div>
+    </div>
+    <div>
+      <div class="box tight">
+        <span class="lbl a">数据流</span>
+        <div class="flow" style="--acc:var(--a3)">
+          <div class="fbox">复杂 query</div><div class="far">→</div>
+          <div class="fbox hi">LLM 分解器<small>Gemini 2.5 定制版</small></div><div class="far">→</div>
+          <div class="fbox">并发多路召回<small>Deep Search 可达数百次</small></div><div class="far">→</div>
+          <div class="fbox">跨结果推理整合</div><div class="far">→</div>
+          <div class="fbox">带引用的生成式回答</div>
+        </div>
+      </div>
+      <div class="box tight">
+        <span class="lbl p">在骨架中的位置</span>
+        <p class="note">站在<b>①查询理解的末端、②召回的入口</b>，是"理解→召回"的多路分发枢纽。它给下游出了一道新题：多路并发意味着<em>单路延迟预算被进一步压缩</em>——这正是主题三（蒸馏）愈发关键的现实驱动力。</p>
+      </div>
+      <div class="stats" style="--acc:var(--a3)">
+        <div class="stat"><div class="num">数百次</div><div class="cap">Deep Search 单任务可发起的子查询量级（官方博客）</div></div>
+        <div class="stat"><div class="num">+10%</div><div class="cap">AI Overviews 带来相关 query 类型的搜索使用量增长</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="refline">来源：<a href="https://blog.google/products-and-platforms/products/search/google-search-ai-mode-update/">Google 官方博客：AI Mode（2025-05-20, Elizabeth Reid）</a></div>
+</section>
+
+<!-- ============ 蒸馏 ① RankGPT ============ -->
+<section class="slide" style="--acc:var(--a3)">
+  <div class="kicker"><b>第三幕</b> · 主题三 蒸馏 1/3 · RankGPT（EMNLP 2023 杰出论文）</div>
+  <h2>老师示范排队，学生上岗执勤 <span class="en">LLM Listwise 排序与置换蒸馏</span></h2>
+  <div class="cols">
+    <div>
+      <div class="box">
+        <span class="lbl i">直觉</span>
+        <p>让 GPT-4 通读一组候选文档、"按相关性重新排一遍队"，零样本效果惊艳——但一次调用要几秒，线上排序只有毫秒。RankGPT 的解法：<strong>老师（GPT）离线示范怎么排，学生（440M 小模型）学习模仿排出的顺序</strong>，学生上线服务，老师功成身退。</p>
+      </div>
+      <div class="box">
+        <span class="lbl m">滑动窗口 + 置换蒸馏</span>
+        <p class="note"><b>滑动窗口</b>：候选超出上下文窗口时，用窗口 w=20、步长 s=10 从列表尾部向头部滑动，窗口内 listwise 重排——像一轮"局部冒泡排序"。</p>
+        <div class="formula">$$\mathcal{L}_{\text{RankNet}}=\sum_{(i,j):\;\pi_t(i)\lt\pi_t(j)}\log\big(1+e^{-(s_i-s_j)}\big)$$</div>
+        <p class="note">教师排列 \(\pi_t\) 转成 pairwise 约束：凡教师认为 \(i\) 排在 \(j\) 前，就惩罚学生打分反过来的情况。<b>妙在只蒸"相对顺序"不蒸"绝对分数"</b>——排序本来就只关心谁前谁后。</p>
+      </div>
+    </div>
+    <div>
+      <div class="box tight">
+        <span class="lbl a">数据流</span>
+        <div class="flow" style="--acc:var(--a3)">
+          <div class="fbox">候选文档集</div><div class="far">→</div>
+          <div class="fbox hi">GPT 教师<small>滑动窗口 listwise 排序<br>完全离线</small></div><div class="far">→</div>
+          <div class="fbox">教师排列 π<small>"[2] &gt; [5] &gt; [1] …"</small></div><div class="far">→</div>
+          <div class="fbox hi">440M 学生<small>cross-encoder<br>线上实时 rerank</small></div>
+        </div>
+      </div>
+      <div class="stats" style="--acc:var(--a3)">
+        <div class="stat"><div class="num">440M &gt; 3B</div><div class="cap">蒸馏学生在 BEIR 上超过 7 倍大的有监督排序模型</div></div>
+      </div>
+      <div class="box tight">
+        <span class="lbl p">在骨架中的位置</span>
+        <p class="note">挂在<b>③排序</b>。注意一个伏笔：给候选排序的教师 LLM，本质上已经是一个 <b>AI Judge</b>——只是它裁决的是"相对顺序"而非"绝对相关性"。主题三与主题六在这里第一次握手。</p>
+      </div>
+    </div>
+  </div>
+  <div class="refline">原文：<a href="https://arxiv.org/abs/2304.09542">Is ChatGPT Good at Search? (RankGPT, EMNLP 2023)</a></div>
+</section>
+
+<!-- ============ 蒸馏 ② RankZephyr + MarginMSE ============ -->
+<section class="slide" style="--acc:var(--a3)">
+  <div class="kicker"><b>第三幕</b> · 主题三 蒸馏 2/3 · RankZephyr 与 MarginMSE</div>
+  <h2>蒸馏是一个谱系，不是单一终点</h2>
+  <div class="cols">
+    <div>
+      <div class="box">
+        <span class="lbl i">RankZephyr：开源化这条路线</span>
+        <p class="note">RankGPT 依赖闭源 GPT-4 教师，难复现、难审计。RankZephyr 以开源 Zephyr-7B 为学生，直接学习<b>生成教师的排列序列本身</b>（生成式蒸馏，而非拆成 pairwise）：</p>
+        <div class="formula">$$\mathcal{L}=-\sum_{t=1}^{T}\log P_{\text{student}}\big(\pi_t\mid\pi_{\lt t},\,q,\,[d_1..d_n]\big)$$</div>
+        <p class="note">在 TREC DL / BEIR 子集上<b>追平甚至反超 GPT-4</b>；在训练截止日期之后的 NovelEval 上也跑赢 GPT-4——排序能力是真学到了，不是背题。7B 体量适合当"二次教师"或 top-50 深度重排层。</p>
+      </div>
+    </div>
+    <div>
+      <div class="box">
+        <span class="lbl m">MarginMSE：跨架构的知识搬运</span>
+        <div class="formula">$$\mathcal{L}=\mathrm{MSE}\Big(\big(s_{stu}(q,d^+)-s_{stu}(q,d^-)\big),\;\big(s_{tea}(q,d^+)-s_{tea}(q,d^-)\big)\Big)$$</div>
+        <p class="note">cross-encoder 教师与 bi-encoder 学生的分数<b>量纲不同</b>，直接对齐绝对分数会失真；对齐"正负例的分数差（margin）"则跨架构可迁移。这是 cross→bi 蒸馏这一跳的标准损失，在 TK / ColBERT / PreTT / 双塔四种学生架构上一致有效。</p>
+      </div>
+      <div class="box tight">
+        <span class="lbl p">谱系视角</span>
+        <p class="note">四种蒸馏信号，同一个思想——<b>学生学教师的"相对判断"，而非人工的"绝对标签"</b>：<br>排列→pairwise（RankGPT）· 排列→生成序列（RankZephyr）· 分数差（MarginMSE）· 合成数据（Gecko）。</p>
+      </div>
+    </div>
+  </div>
+  <div class="refline">原文：<a href="https://arxiv.org/abs/2312.02724">RankZephyr (2023)</a> · <a href="https://arxiv.org/abs/2010.02666">Cross-Architecture Knowledge Distillation / MarginMSE (2020)</a></div>
+</section>
+
+<!-- ============ 蒸馏 ③ 级联总览 ============ -->
+<section class="slide" style="--acc:var(--a3)">
+  <div class="kicker"><b>第三幕</b> · 主题三 蒸馏 3/3 · 级联全景</div>
+  <h2>LLM 能力如何塞进 10ms 延迟预算 <span class="en">The Distillation Assembly Line</span></h2>
+  <p class="sub">答案：不是把 LLM 一次性变小，而是<em>多级师生链条，把语义判断力逐级"结晶"进不同延迟量级的组件</em>。</p>
+  <div class="svgwrap">
+  <svg viewBox="0 0 1150 260" width="100%">
+    <defs><marker id="dar" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9z" fill="#b78cff"/></marker></defs>
+    <g font-size="13.5">
+      <rect x="30" y="50" width="230" height="120" rx="14" fill="#151a26" stroke="#b78cff" stroke-width="2"/>
+      <text x="145" y="82" fill="#b78cff" font-weight="800" text-anchor="middle" font-size="15">LLM 教师</text>
+      <text x="145" y="106" fill="#e9edf5" text-anchor="middle">GPT-4 / Judge 标注</text>
+      <text x="145" y="128" fill="#98a3b8" text-anchor="middle">秒级 · 完全离线</text>
+      <text x="145" y="150" fill="#98a3b8" text-anchor="middle">数据小而精</text>
+      <rect x="330" y="50" width="230" height="120" rx="14" fill="#151a26" stroke="#e879a8" stroke-width="2"/>
+      <text x="445" y="82" fill="#e879a8" font-weight="800" text-anchor="middle" font-size="15">Cross-Encoder</text>
+      <text x="445" y="106" fill="#e9edf5" text-anchor="middle">教师标注训练的精排器</text>
+      <text x="445" y="128" fill="#98a3b8" text-anchor="middle">数十 ms · 在线精排</text>
+      <text x="445" y="150" fill="#98a3b8" text-anchor="middle">小候选集专用</text>
+      <rect x="630" y="50" width="230" height="120" rx="14" fill="#151a26" stroke="#3fc6d0" stroke-width="2"/>
+      <text x="745" y="82" fill="#3fc6d0" font-weight="800" text-anchor="middle" font-size="15">Bi-Encoder</text>
+      <text x="745" y="106" fill="#e9edf5" text-anchor="middle">MarginMSE 蒸馏的双塔</text>
+      <text x="745" y="128" fill="#98a3b8" text-anchor="middle">单次前向 5ms 以内</text>
+      <text x="745" y="150" fill="#98a3b8" text-anchor="middle">向量灌入索引</text>
+      <rect x="930" y="50" width="190" height="120" rx="14" fill="#151a26" stroke="#4ade80" stroke-width="2"/>
+      <text x="1025" y="82" fill="#4ade80" font-weight="800" text-anchor="middle" font-size="15">ANN 索引</text>
+      <text x="1025" y="106" fill="#e9edf5" text-anchor="middle">HNSW / IVF-PQ</text>
+      <text x="1025" y="128" fill="#98a3b8" text-anchor="middle">亚毫秒级</text>
+      <text x="1025" y="150" fill="#98a3b8" text-anchor="middle">服务海量 QPS</text>
+      <line x1="260" y1="110" x2="323" y2="110" stroke="#b78cff" stroke-width="2.5" marker-end="url(#dar)"/>
+      <line x1="560" y1="110" x2="623" y2="110" stroke="#b78cff" stroke-width="2.5" marker-end="url(#dar)"/>
+      <line x1="860" y1="110" x2="923" y2="110" stroke="#b78cff" stroke-width="2.5" marker-end="url(#dar)"/>
+      <text x="292" y="98" fill="#98a3b8" text-anchor="middle" font-size="12">标注/排列</text>
+      <text x="592" y="98" fill="#98a3b8" text-anchor="middle" font-size="12">MarginMSE</text>
+      <text x="892" y="98" fill="#98a3b8" text-anchor="middle" font-size="12">建索引</text>
+      <text x="575" y="212" fill="#ffd479" text-anchor="middle" font-size="14" font-weight="700">知识与判断力 ⟶ 从左向右流动　·　数据量与 QPS ⟶ 从右向左增长</text>
+      <text x="575" y="240" fill="#6b7690" text-anchor="middle" font-size="13">每一跳都是一次"教师→学生"蒸馏：KL 散度 / MarginMSE / RankNet / 生成式交叉熵</text>
+    </g>
+  </svg>
+  </div>
+  <div class="cols">
+    <div class="box tight">
+      <span class="lbl i">类比</span>
+      <p class="note">专家（LLM）先给出权威意见，中层主管（CE）转化为可执行规则，一线员工（BE+ANN）按规则毫秒响应——<b>层层压缩决策延迟，尽量不损失决策质量</b>。</p>
+    </div>
+    <div class="box tight">
+      <span class="lbl p">与其他主题的连接</span>
+      <p class="note">链条最上游的"LLM 教师标注"正是主题六 AI-as-a-Judge 的产出（Thomas et al. 用 LLM 标签训出了"明显更好"的排序器）；链条服务的 query 则来自主题二的改写/分解结果。<b>蒸馏是把所有主题黏合到线上系统的胶水。</b></p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 生成式检索 ① DSI ============ -->
+<section class="slide" style="--acc:var(--a3)">
+  <div class="kicker"><b>第三幕</b> · 主题四 生成式检索 1/3 · DSI（NeurIPS 2022）</div>
+  <h2>把图书馆的索引卡片背进脑子 <span class="en">Differentiable Search Index</span></h2>
+  <div class="cols">
+    <div>
+      <div class="box">
+        <span class="lbl i">直觉</span>
+        <p>传统检索是"图书馆 + 检索员"的分离结构：文档存进外部索引，检索员（双塔+ANN）查表比对。DSI 干脆<strong>把整座图书馆的目录背下来</strong>：直接问模型"哪本书有答案"，模型脱口而出书号（docid）。<em>索引不再是数据结构，而是模型参数；"建索引"这个动作被约化为"训练"。</em></p>
+        <table style="margin-top:10px">
+          <tr><th>范式</th><th>索引是什么</th><th>检索是什么</th></tr>
+          <tr><td>BM25</td><td>倒排表</td><td>稀疏向量匹配</td></tr>
+          <tr><td>双塔</td><td>向量表 + ANN</td><td>近似最近邻查找</td></tr>
+          <tr><td><b style="color:var(--a3)">DSI</b></td><td><b style="color:var(--a3)">模型参数本身</b></td><td><b style="color:var(--a3)">一次前向推理</b></td></tr>
+        </table>
+      </div>
+    </div>
+    <div>
+      <div class="box">
+        <span class="lbl m">双任务训练目标</span>
+        <div class="formula">$$\mathcal{L}=\underbrace{-\sum_{(d_j,j)}\log P_\theta(j\mid d_j)}_{\text{indexing：记住 文档}\to\text{docid}}\;+\;\underbrace{-\sum_{(q,j)}\log P_\theta(j\mid q)}_{\text{retrieval：学会 查询}\to\text{docid}}$$</div>
+        <div class="formula">$$j^*=\arg\max_j\;P_\theta(j\mid q)\quad\text{（beam search 解码 top-k）}$$</div>
+        <p class="note"><b>indexing 任务 = 记忆</b>（"这篇文档是几号"），<b>retrieval 任务 = 回忆</b>（"这个问题去几号找"）。只练回忆不练记忆无法泛化——模型必须先"背下"语料库。</p>
+      </div>
+      <div class="stats" style="--acc:var(--a3)">
+        <div class="stat"><div class="num">12.4→33.9</div><div class="cap">NQ 10k 语料 Hits@1：双塔 → DSI（T5-Base）</div></div>
+        <div class="stat"><div class="num">+25 点</div><div class="cap">T5-11B 时的提升幅度——模型越大，DSI 优势越大</div></div>
+        <div class="stat"><div class="num">+14 点</div><div class="cap">零样本设置下比 BM25 高出的 Hits@1</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="refline">原文：<a href="https://arxiv.org/abs/2202.06991">Transformer Memory as a Differentiable Search Index (NeurIPS 2022)</a></div>
+</section>
+
+<!-- ============ 生成式检索 ② docid 方案 ============ -->
+<section class="slide" style="--acc:var(--a3)">
+  <div class="kicker"><b>第三幕</b> · 主题四 生成式检索 2/3 · docid 的设计空间</div>
+  <h2>书号怎么编，决定背不背得下来 <span class="en">DSI docid · NCI · SEAL</span></h2>
+  <div class="cols">
+    <div>
+      <div class="box tight">
+        <span class="lbl m">DSI 的三种 docid</span>
+        <table>
+          <tr><th>方案</th><th>做法</th><th>命门</th></tr>
+          <tr><td><b>Atomic</b></td><td>每篇文档一个新 token，一步 softmax</td><td>词表随语料线性膨胀</td></tr>
+          <tr><td><b>Naive string</b></td><td>整数 docid 当字符串逐位生成</td><td>数字无语义</td></tr>
+          <tr><td><b>Semantic string</b></td><td>层次聚类路径当 docid（"3-1-4"）</td><td><b style="color:var(--a4)">综合最佳</b>：相似文档共享前缀，beam search 天然友好</td></tr>
+        </table>
+        <p class="note">语义 docid 的层次聚类，与上一主题的 <b>RQ-VAE 语义 ID</b> 殊途同归——"把内容压成有结构的离散编码"是生成式检索的公共地基。</p>
+      </div>
+      <div class="box tight">
+        <span class="lbl i">DSI-QG：合成查询弥合分布差</span>
+        <p class="note">indexing 用"文档全文"、retrieval 用"短查询"，两种输入分布差异巨大。DSI-QG 用查询生成模型给每篇文档造伪查询，<b>用"伪查询→docid"代替"文档→docid"做索引样本</b>——后来被规模化实验证实是生成式检索最关键的组件。</p>
+      </div>
+    </div>
+    <div>
+      <div class="svgwrap">
+      <svg viewBox="0 0 520 240" width="100%">
+        <g font-size="13">
+          <text x="260" y="24" fill="#e9edf5" font-weight="700" text-anchor="middle" font-size="14">语义 docid：层次聚类树上的一条路径</text>
+          <circle cx="260" cy="60" r="17" fill="#151a26" stroke="#b78cff" stroke-width="2"/><text x="260" y="65" fill="#b78cff" text-anchor="middle">root</text>
+          <circle cx="130" cy="120" r="15" fill="#151a26" stroke="#3fc6d0"/><text x="130" y="125" fill="#3fc6d0" text-anchor="middle">1</text>
+          <circle cx="260" cy="120" r="15" fill="#151a26" stroke="#3fc6d0"/><text x="260" y="125" fill="#3fc6d0" text-anchor="middle">2</text>
+          <circle cx="390" cy="120" r="15" fill="#151a26" stroke="#ffd479" stroke-width="2"/><text x="390" y="125" fill="#ffd479" text-anchor="middle">3</text>
+          <line x1="252" y1="75" x2="140" y2="107" stroke="#273049"/><line x1="260" y1="77" x2="260" y2="105" stroke="#273049"/><line x1="270" y1="75" x2="382" y2="107" stroke="#ffd479"/>
+          <circle cx="330" cy="180" r="13" fill="#151a26" stroke="#ffd479" stroke-width="2"/><text x="330" y="185" fill="#ffd479" text-anchor="middle">1</text>
+          <circle cx="450" cy="180" r="13" fill="#151a26" stroke="#273049"/><text x="450" y="185" fill="#6b7690" text-anchor="middle">2</text>
+          <line x1="382" y1="132" x2="338" y2="169" stroke="#ffd479"/><line x1="398" y1="132" x2="443" y2="169" stroke="#273049"/>
+          <circle cx="290" cy="222" r="11" fill="#151a26" stroke="#273049"/><text x="290" y="226" fill="#6b7690" text-anchor="middle" font-size="11">…</text>
+          <circle cx="370" cy="222" r="11" fill="#ffd479"/><text x="370" y="226" fill="#0b0e14" text-anchor="middle" font-size="11" font-weight="800">4</text>
+          <line x1="323" y1="192" x2="295" y2="212" stroke="#273049"/><line x1="338" y1="192" x2="365" y2="213" stroke="#ffd479"/>
+          <text x="120" y="215" fill="#ffd479" font-size="14" font-weight="700">docid = "3-1-4"</text>
+          <text x="120" y="234" fill="#98a3b8" font-size="12">相似文档共享前缀 → 解码即导航</text>
+        </g>
+      </svg>
+      </div>
+      <div class="box tight">
+        <span class="lbl i">NCI 与 SEAL 的两条岔路</span>
+        <p class="note"><b>NCI</b>：给解码器装"前缀感知"能力（PAWA），按已生成的 docid 前缀动态调整输出分布 + 查询生成增强（NQ320k Recall@1 相对 +21.4%）。<br><b>SEAL</b>：干脆不设计 docid——<b>用文档里真实出现的 n-gram 当标识符</b>，FM-index 约束解码保证只生成语料中存在的片段，再映射回原文档（KILT 上 R-precision 平均高 10 点以上）。</p>
+      </div>
+    </div>
+  </div>
+  <div class="refline">原文：<a href="https://arxiv.org/abs/2206.02743">NCI (NeurIPS 2022)</a> · <a href="https://arxiv.org/abs/2204.10628">SEAL (NeurIPS 2022)</a> · <a href="https://arxiv.org/abs/2206.10128">DSI-QG</a></div>
+</section>
+
+<!-- ============ 生成式检索 ③ 规模化 ============ -->
+<section class="slide" style="--acc:var(--a3)">
+  <div class="kicker"><b>第三幕</b> · 主题四 生成式检索 3/3 · 现实检验</div>
+  <h2>百万文档的冷水，与推荐系统的暖流</h2>
+  <div class="cols">
+    <div>
+      <div class="box">
+        <span class="lbl n">冷水：规模化实验（Pradeep et al., EMNLP 2023）</span>
+        <p class="note">首次在 MS MARCO 全量 <b>880 万段落</b>上系统评测生成式检索（模型测到 11B），三条结论：</p>
+        <ul class="clean" style="--acc:var(--a3b)">
+          <li><b>合成查询是核心组件</b>——DSI-QG 式伪查询被反复验证为唯一稳定有效的文档表示。</li>
+          <li>此前各种架构改动，<b>扣除算力成本后基本无效</b>。</li>
+          <li><b>单纯堆参数收益有上限</b>，无法像 LLM 那样持续 scaling。</li>
+        </ul>
+        <p class="note">结论：小语料上可与 SOTA 双塔竞争，<b>百万级以上仍是未解难题</b>。另有 DSI++ 指出：持续加新文档会引发<b>灾难性遗忘</b>——"背书的人换了新书得重背"，需用伪查询回放缓解。</p>
+      </div>
+      <div class="box tight">
+        <span class="lbl p">与双塔的权衡</span>
+        <p class="note">双塔：语料更新只需增量插向量，十亿级稳健；DSI：更新 = 重训模型。<b>网页搜索（万亿级、分钟级更新）暂时无解，但候选集有限、语义结构强的场景正好可行</b>——于是它在推荐系统开花。</p>
+      </div>
+    </div>
+    <div>
+      <div class="box">
+        <span class="lbl a">暖流：工业落地（2025–2026）</span>
+        <table>
+          <tr><th>系统</th><th>公司</th><th>要点</th></tr>
+          <tr><td><b>TIGER</b></td><td>Google</td><td>RQ-VAE 语义 ID + seq2seq 生成式推荐的开山之作</td></tr>
+          <tr><td><b>OneRec / V2</b></td><td>快手</td><td>端到端生成式推荐架构，V2 转向纯自回归解码器，联合优化推荐/搜索/广告；以 RL 偏好对齐（IPA）精炼生成</td></tr>
+          <tr><td><b>DAS</b></td><td>快手</td><td>双对齐语义 ID，已部署在线广告系统</td></tr>
+          <tr><td><b>EGA-V1/V2</b></td><td>美团</td><td>召回、排序、竞价统一进单一生成式接口，token 级出价</td></tr>
+          <tr><td>语义 ID 部署</td><td>Meta / YouTube / 淘宝</td><td>生产推荐系统采用，主打冷启动与 embedding 表稳定性</td></tr>
+        </table>
+        <p class="note"><b>叙事意义</b>：生成式检索没有如论文预言般替换网页搜索的召回层，却先在推荐/广告完成了"索引=参数"的落地——技术迁移的路径常常绕开正面战场。2026 年电商搜索方向也开始出现语义簇 ID + RL 的新工作。</p>
+      </div>
+    </div>
+  </div>
+  <div class="refline">原文：<a href="https://arxiv.org/abs/2305.11841">How Does Generative Retrieval Scale to Millions of Passages? (EMNLP 2023)</a> · <a href="https://arxiv.org/abs/2212.09744">DSI++</a> · <a href="https://arxiv.org/abs/2305.05065">TIGER</a></div>
+</section>
+
+<!-- ============ RAG ① REALM/RAG ============ -->
+<section class="slide" style="--acc:var(--a3)">
+  <div class="kicker"><b>第三幕</b> · 主题五 RAG 1/3 · REALM 与 RAG（2020）</div>
+  <h2>开卷考试 <span class="en">检索作为隐变量</span></h2>
+  <div class="cols">
+    <div>
+      <div class="box tight">
+        <span class="lbl i">直觉</span>
+        <p class="note">参数化模型把知识"死记硬背"进权重：陈旧、不可溯源、无法局部更新。RAG 给模型配一个<b>随时可翻的资料库</b>——先检索、再"看着资料作答"。<em>开卷考试：书可以换新版，答题的手还是自己的手。</em></p>
+      </div>
+      <div class="box">
+        <span class="lbl m">REALM：检索即隐变量</span>
+        <div class="formula">$$p(y\mid x)=\sum_{z\in\mathcal Z}p(y\mid z,x)\;p(z\mid x),\qquad p(z\mid x)=\frac{e^{f(x,z)}}{\sum_{z'}e^{f(x,z')}}$$</div>
+        <p class="note">\(z\)=从语料库挑出的文档（隐变量），\(f(x,z)\)=双塔内积。<b>关键</b>：梯度穿过检索概率 \(p(z|x)\) 回传——检索器不是外挂模块，而是<em>随语言建模目标一起被训练</em>。工程难点：文档向量随参数更新而过时 → <b>异步重建 MIPS 索引</b>（每几百步刷新一次）。</p>
+      </div>
+    </div>
+    <div>
+      <div class="box">
+        <span class="lbl m">RAG：两种边缘化粒度</span>
+        <div class="formula">$$p_{\text{RAG-Seq}}(y\mid x)\approx\sum_{z\in\text{top-}k}p_\eta(z\mid x)\prod_{i=1}^{N}p_\theta(y_i\mid x,z,y_{1:i-1})$$</div>
+        <div class="formula">$$p_{\text{RAG-Tok}}(y\mid x)\approx\prod_{i=1}^{N}\sum_{z\in\text{top-}k}p_\eta(z\mid x)\,p_\theta(y_i\mid x,z,y_{1:i-1})$$</div>
+        <p class="note"><b>Sequence</b>：选定几篇资料通篇写完（求和在外）；<b>Token</b>：每写一个词都可换资料看（求和在内）——粒度更细、计算更贵。检索器 \(p_\eta\) 就是 DPR 双塔：<em>第二幕的召回技术原封不动成为 RAG 的地基</em>。</p>
+      </div>
+      <div class="stats" style="--acc:var(--a3)">
+        <div class="stat"><div class="num">+4~16pp</div><div class="cap">REALM 在三个 Open-QA 基准上的绝对提升</div></div>
+        <div class="stat"><div class="num">SOTA</div><div class="cap">RAG 三个 ODQA 任务当时最优，生成更具体、更符合事实</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="refline">原文：<a href="https://arxiv.org/abs/2002.08909">REALM (ICML 2020)</a> · <a href="https://arxiv.org/abs/2005.11401">RAG (NeurIPS 2020)</a></div>
+</section>
+
+<!-- ============ RAG ② FiD + Self-RAG ============ -->
+<section class="slide" style="--acc:var(--a3)">
+  <div class="kicker"><b>第三幕</b> · 主题五 RAG 2/3 · FiD 与 Self-RAG</div>
+  <h2>翻书的工程学与自觉性</h2>
+  <div class="cols">
+    <div>
+      <div class="box">
+        <span class="lbl m">FiD：解码器侧融合（翻书效率工程）</span>
+        <div class="formula">$$\mathbf H_i=\mathrm{Enc}\big([q;p_i]\big)\;\;(i=1..k),\qquad y=\mathrm{Dec}\big(\mathrm{Concat}(\mathbf H_1..\mathbf H_k)\big)$$</div>
+        <p class="note">编码器<b>独立并行</b>编码每篇"问题+段落"（线性开销），融合动作推迟到解码器的交叉注意力一次完成。若把 k 篇拼成长序列整体编码，自注意力是平方级开销——FiD 因此能吃下<b>几十篇文档</b>而显存不爆，NQ/TriviaQA 当时 SOTA，且效果随段落数持续上涨。</p>
+      </div>
+      <div class="box tight">
+        <span class="lbl p">位置速记</span>
+        <p class="note">REALM/RAG/FiD 共同确立：<b>④结果呈现</b>从"十条蓝链"变成"生成答案"，而②召回③排序整条链路被 RAG 原样复用——<em>检索不到，就编不出真话；检索质量仍是答案质量的上限</em>。</p>
+      </div>
+    </div>
+    <div>
+      <div class="box">
+        <span class="lbl m">Self-RAG：把"要不要翻书"也交给模型</span>
+        <div class="formula">$$p(y_t,\,r_t\mid x,\,y_{\lt t})\qquad r_t\in\{\texttt{Retrieve},\texttt{ISREL},\texttt{ISSUP},\texttt{ISUSE}\}$$</div>
+        <p class="note">词表里加入四类<b>反思 token</b>，与正文一起被自回归生成：<br><b>Retrieve</b>＝这步要不要查资料？<b>ISREL</b>＝查到的段落相关吗？<b>ISSUP</b>＝我写的话有依据吗？<b>ISUSE</b>＝整段回答有用吗？<br>检索从"流程写死的每次 top-k"变成<b>模型自主决策的动作</b>；反思分数还用于 segment 级 beam search 挑选最优延续。</p>
+        <div class="stats" style="--acc:var(--a3)">
+          <div class="stat"><div class="num">7B/13B</div><div class="cap">Self-RAG 在多任务上超过 ChatGPT 与带检索的 Llama2-chat，长文本事实性与引用准确率显著提升</div></div>
+        </div>
+        <p class="note"><b>留意 ISREL / ISSUP 的本质</b>：模型在给检索质量和事实一致性"打分"——这已经是内嵌在生成过程里的 AI Judge。下一个主题的伏笔再次出现。</p>
+      </div>
+    </div>
+  </div>
+  <div class="refline">原文：<a href="https://arxiv.org/abs/2007.01282">FiD (EACL 2021)</a> · <a href="https://arxiv.org/abs/2310.11511">Self-RAG (ICLR 2024)</a></div>
+</section>
+
+<!-- ============ RAG ③ Agentic ============ -->
+<section class="slide" style="--acc:var(--a3)">
+  <div class="kicker"><b>第三幕</b> · 主题五 RAG 3/3 · Agentic RAG / Deep Research（2025–26）</div>
+  <h2>从翻一次书，到带着问题跑图书馆 <span class="en">Agentic RAG</span></h2>
+  <div class="cols">
+    <div>
+      <div class="box tight">
+        <span class="lbl i">直觉</span>
+        <p class="note">RAG 1.0 是"查一次、答一次"；Deep Research 是<b>研究员工作流</b>：先写研究计划 → 多轮"搜索-阅读-推理"循环 → 判断信息够不够 → 不够再查 → 最后写出带引用的报告。检索从一次函数调用，变成<b>智能体循环里反复出现的动作</b>。</p>
+      </div>
+      <div class="box tight">
+        <span class="lbl m">何谓"真正 Agentic"（Survey, arXiv:2501.09136）</span>
+        <ul class="clean" style="--acc:var(--a3)">
+          <li><b>自主策略</b>：LLM 自己选择并组织检索/推理策略。</li>
+          <li><b>迭代执行</b>：根据中间结果动态调整的多轮循环。</li>
+          <li><b>交织工具调用</b>：类 ReAct 的"行动-观察"交替。</li>
+        </ul>
+      </div>
+      <div class="box tight">
+        <span class="lbl p">对骨架的意义</span>
+        <p class="note">Agentic RAG 把①查询理解（分解子问题）、②召回（多轮检索）、④呈现（综合报告）<b>重新揉进一个循环</b>——骨架清晰的阶段边界第一次被模糊。它不替换骨架，而是站在骨架之上反复调用骨架。</p>
+      </div>
+    </div>
+    <div>
+      <div class="box">
+        <span class="lbl a">循环架构</span>
+        <div class="flow" style="--acc:var(--a3)">
+          <div class="fbox">用户任务</div><div class="far">→</div>
+          <div class="fbox hi">规划器<small>生成多步研究计划</small></div><div class="far">→</div>
+          <div class="fbox hi">循环执行<small>搜索 / 浏览 / 代码工具<br>阅读 → 推理 → 判断是否够</small></div><div class="far">→</div>
+          <div class="fbox">带引用的报告</div>
+        </div>
+        <p class="note" style="margin-top:2px">循环中"判断是否够"不通过 ⟲ 回到执行步。</p>
+        <table>
+          <tr><th>产品</th><th>要点</th></tr>
+          <tr><td><b>OpenAI Deep Research</b><br>2025-02</td><td>基于为浏览/数据分析优化的 o3；数十分钟完成人类数小时的信息综合；后接入可视化浏览器（ChatGPT Agent）</td></tr>
+          <tr><td><b>Gemini Deep Research</b><br>2024 末起</td><td>先出研究计划、用户确认后执行"规划→搜索→阅读→推理→撰写"；2026-04 推出 Deep Research Max</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="refline">原文：<a href="https://arxiv.org/abs/2501.09136">Agentic RAG Survey (2025)</a> · <a href="https://cdn.openai.com/deep-research-system-card.pdf">OpenAI Deep Research 系统卡</a> · <a href="https://ai.google.dev/gemini-api/docs/deep-research">Gemini Deep Research 文档</a></div>
+</section>
+
+<!-- ============ Judge ① Thomas et al. ============ -->
+<section class="slide" style="--acc:var(--a3)">
+  <div class="kicker"><b>第三幕</b> · 主题六 AI as a Judge 1/3 · Thomas et al.（Bing, SIGIR 2024）</div>
+  <h2>AI 标注员上岗 <span class="en">LLMs Can Accurately Predict Searcher Preferences</span></h2>
+  <div class="cols">
+    <div>
+      <div class="box">
+        <span class="lbl i">直觉</span>
+        <p>传统相关性标注靠雇佣第三方标注员——但标注员不是真实用户，常常标不到点子上。Bing 反其道行之：<strong>先收集小规模、高质量的真实用户反馈当"北极星"，再反复调 LLM 的 prompt，直到它的判断与真实用户对齐</strong>——训练的不是模型，是提示词；校准好后即可无限复制这位"最懂用户的标注员"。</p>
+      </div>
+      <div class="box">
+        <span class="lbl m">数学：prompt 即参数</span>
+        <div class="formula">$$\text{Prompt}^*=\arg\max_{\text{Prompt}}\;\mathrm{Agreement}\big(\mathrm{LLM}_{\text{Prompt}}(q,d),\;y^*\big)$$</div>
+        <div class="formula">$$\kappa=\frac{p_o-p_e}{1-p_e}$$</div>
+        <p class="note">\(y^*\)=真实用户黄金反馈；一致性用 Cohen's \(\kappa\)（\(p_o\)=观测一致率，\(p_e\)=随机期望一致率）。LLM 零训练（zero-shot）——<b>搜索质量评估的"参数"变成了一段自然语言</b>。</p>
+      </div>
+    </div>
+    <div>
+      <div class="box tight">
+        <span class="lbl a">数据流</span>
+        <div class="flow" style="--acc:var(--a3)">
+          <div class="fbox">真实用户反馈<small>小规模黄金集</small></div><div class="far">→</div>
+          <div class="fbox hi">Prompt 迭代校准<small>对齐 κ 最大化</small></div><div class="far">→</div>
+          <div class="fbox">冻结 prompt</div><div class="far">→</div>
+          <div class="fbox hi">大规模离线标注<small>成本仅人工的一小部分</small></div>
+        </div>
+      </div>
+      <div class="box tight">
+        <span class="lbl p">最关键的一句话</span>
+        <p class="note">论文明确报告：LLM 标注质量<b>与人类标注员相当</b>，且用 LLM 标签训出的排序器<b>"明显更好"（notably better rankers）</b>。也就是说——Judge 的产出不止用于"打分"，而是直接进入训练数据池，成为主题三蒸馏链路最上游的教师标注来源。<em>评估与训练在此合流。</em></p>
+      </div>
+      <div class="stats" style="--acc:var(--a3)">
+        <div class="stat"><div class="num">≈人类</div><div class="cap">LLM 标注准确率与人类标注员相当（挑难 query、辨好系统的能力相近）</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="refline">原文：<a href="https://arxiv.org/abs/2309.10621">Large Language Models can Accurately Predict Searcher Preferences (SIGIR 2024)</a></div>
+</section>
+
+<!-- ============ Judge ② UMBRELA + RAGAS ============ -->
+<section class="slide" style="--acc:var(--a3)">
+  <div class="kicker"><b>第三幕</b> · 主题六 AI as a Judge 2/3 · UMBRELA 与 RAGAS</div>
+  <h2>开源复现与生成时代的新考卷</h2>
+  <div class="cols">
+    <div>
+      <div class="box">
+        <span class="lbl i">UMBRELA：把秘方变菜谱</span>
+        <p class="note">Bing 方案未开源。UMBRELA 用 GPT-4o + DNA prompt（理解意图 → 匹配度 → 可信度 → 0-3 分）复现并开源，被 TREC 2024 RAG Track 正式采用。核心发现（DL19-23）：</p>
+        <table>
+          <tr><th>指标</th><th>数值</th><th>解读</th></tr>
+          <tr><td>Cohen's κ（单条标签）</td><td>0.31–0.37</td><td>逐条一致性只算中等</td></tr>
+          <tr><td>Kendall τ（系统排名）</td><td><b style="color:var(--a4)">0.87–0.94</b></td><td rowspan="2"><b>用 LLM 标注判断"哪个系统更好"，结论与人类高度一致</b></td></tr>
+          <tr><td>Spearman ρ（系统排名）</td><td><b style="color:var(--a4)">0.97+</b></td></tr>
+        </table>
+        <p class="note"><b>洞察</b>：Judge 不必逐条复刻人类判断，只要在"系统级排名"这个更粗、更实用的粒度上可靠即可——这正是工业迭代真正需要的粒度。</p>
+      </div>
+    </div>
+    <div>
+      <div class="box">
+        <span class="lbl m">RAGAS：评估对象从排序变成生成</span>
+        <div class="formula">$$\text{Faithfulness}=\frac{\#\{\text{答案中被 context 支持的 claim}\}}{\#\{\text{答案中全部 claim}\}}$$</div>
+        <div class="formula">$$\text{AnswerRel}=\frac{1}{n}\sum_{i=1}^{n}\cos\big(E(q),\,E(q_i)\big)$$</div>
+        <p class="note"><b>Faithfulness</b>：把回答拆成可验证的陈述，逐条对照检索内容查"有没有编"。<br><b>Answer Relevance</b> 的反推巧思：让 LLM 从答案<b>反推</b>"它最适合回答什么问题"\(q_i\)，与原问题算相似度——切题的回答应能反推回原问题。<br>外加 Context Relevance（检索内容里有用句子占比）。三项全由 LLM 现场判定，<b>无需人工 ground truth</b>，可当 CI 一样嵌进 RAG 迭代流程。</p>
+      </div>
+      <div class="box tight">
+        <span class="lbl p">位置</span>
+        <p class="note">④结果呈现变成生成式答案后，⑤评估闭环的考卷也随之改版：从"文档相关吗"扩展到"答案有依据吗"。评估栈与呈现栈同步演化。</p>
+      </div>
+    </div>
+  </div>
+  <div class="refline">原文：<a href="https://arxiv.org/abs/2406.06519">UMBRELA (2024)</a> · <a href="https://arxiv.org/abs/2309.15217">RAGAS (EACL 2024)</a></div>
+</section>
+
+<!-- ============ Judge ③ 偏差 + 飞轮 ============ -->
+<section class="slide" style="--acc:var(--a3)">
+  <div class="kicker"><b>第三幕</b> · 主题六 AI as a Judge 3/3 · 偏差、校准与数据飞轮</div>
+  <h2>裁判也有偏见，但飞轮已经转起来了</h2>
+  <div class="cols">
+    <div>
+      <div class="box tight">
+        <span class="lbl n">三大偏差（MT-Bench, NeurIPS 2023）</span>
+        <ul class="clean" style="--acc:var(--a3b)">
+          <li><b>位置偏差</b>：交换两个答案的呈现顺序，判决可能翻转——检测法：正序逆序各问一次，统计翻转率。</li>
+          <li><b>冗长偏差</b>：话越长越像认真作答，得分越高。</li>
+          <li><b>自我偏好</b>：GPT-4 裁判偏爱"读起来像 GPT-4"的答案（与文本困惑度更低有关，2025-26 持续有量化与校准工作）。</li>
+        </ul>
+        <p class="note">参照系：GPT-4 judge 与人类一致率 <b>约 85%</b>，而人类-人类一致率<b>约 81%</b>——足够可靠，但绝非无偏。校准（换序取平均、分布重标定）是闭环前的必修课；2024 年亦有工作明确论证"LLM 标注仍不能完全替代人工"——<b>辅助而非替代</b>是当前的平衡表述。</p>
+      </div>
+    </div>
+    <div>
+      <div class="box">
+        <span class="lbl m">数据飞轮：全片主题在此汇合</span>
+        <div class="formula">$$\mathcal D_{\text{judge}}=\{(q_i,d_i,\,\mathrm{Judge}_{\mathrm{LLM}}(q_i,d_i))\}\;\xrightarrow{\;\text{监督信号}\;}\;\theta\leftarrow\arg\min_\theta\mathcal L(\theta;\mathcal D_{\text{judge}})$$</div>
+        <div class="flow" style="--acc:var(--a3);margin-top:12px">
+          <div class="fbox hi">Judge 标注<small>相关性 + 生成质量</small></div><div class="far">→</div>
+          <div class="fbox">训练数据池</div><div class="far">→</div>
+          <div class="fbox">蒸馏级联<small>LLM→CE→BE→ANN</small></div><div class="far">→</div>
+          <div class="fbox">上线 A/B</div><div class="far">→</div>
+          <div class="fbox">真实用户反馈<small>点击 · 停留 · 转化</small></div>
+        </div>
+        <p class="note" style="text-align:center;margin-top:2px">⟲ 反馈回流校准 Judge 的 prompt 与阈值 → 下一轮标注</p>
+        <p class="note"><b>双向闭环</b>：线下（Judge→训练）与线上（反馈→校准 Judge）互为纠错。若少了线上这半环，Judge 的偏见会被飞轮不断放大——"裁判的偏见 → 数据的偏见 → 模型的偏见 → 裁判更认可这种偏见"。<em>这是骨架第⑤环的最终形态，也是系统随每轮迭代持续变强的引擎。</em></p>
+      </div>
+    </div>
+  </div>
+  <div class="refline">原文：<a href="https://arxiv.org/abs/2306.05685">Judging LLM-as-a-Judge with MT-Bench (NeurIPS 2023)</a> · <a href="https://arxiv.org/abs/2412.17156">LLM-based relevance assessment still can't replace human (2024)</a></div>
+</section>
+
+<!-- ============ 终幕 开场 ============ -->
+<section class="slide act-open" id="act4" style="--acc:var(--a4)">
+  <div class="big-num">FINALE · 2026</div>
+  <h1 style="color:var(--a4)">终幕 · 拼图完成</h1>
+  <p class="tag-line">六大主题各就各位，拼出一张 <em>2026 工业级 AI 搜索全栈图</em>。<br>再把 Meta、Google、OpenAI、Perplexity 逐一放到这张图上，看它们各自改装了哪些环节。</p>
+  <div class="acts-row">
+    <span class="pill on" style="--acc:var(--a4)">Meta AI Mode · 2026-06</span>
+    <span class="pill on" style="--acc:var(--a4)">Google AI Overviews / AI Mode</span>
+    <span class="pill on" style="--acc:var(--a4)">OpenAI ChatGPT Search · Atlas</span>
+    <span class="pill on" style="--acc:var(--a4)">Perplexity · Comet</span>
+  </div>
+</section>
+
+<!-- ============ 全栈图 ============ -->
+<section class="slide" style="--acc:var(--a4)">
+  <div class="kicker"><b>终幕</b> · 2026 工业级 AI 搜索全栈</div>
+  <h2>三个时代的颜色，在同一张图上共存</h2>
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:16px 0">
+    <div class="box tight mb0"><h3 style="color:var(--a4);font-size:16px">① 查询理解</h3>
+      <div class="pill" style="border-color:var(--a1);display:block;margin:6px 0">分词 · 实体 · 意图</div>
+      <div class="pill" style="border-color:var(--a2);display:block;margin:6px 0">query 嵌入（双塔）</div>
+      <div class="pill" style="border-color:var(--a3);display:block;margin:6px 0">LLM 改写→蒸馏小模型</div>
+      <div class="pill" style="border-color:var(--a3);display:block;margin:6px 0">HyDE / Query2Doc（长尾）</div>
+      <div class="pill" style="border-color:var(--a3);display:block;margin:6px 0">Query Fan-out（复杂题）</div>
+    </div>
+    <div class="box tight mb0"><h3 style="color:var(--a4);font-size:16px">② 召回 / 索引</h3>
+      <div class="pill" style="border-color:var(--a1);display:block;margin:6px 0">倒排索引（Unicorn 式）</div>
+      <div class="pill" style="border-color:var(--a2);display:block;margin:6px 0">双塔 + ANN 混合召回</div>
+      <div class="pill" style="border-color:var(--a3);display:block;margin:6px 0">LLM 蒸馏嵌入（Gecko 式）</div>
+      <div class="pill" style="border-color:var(--a3);display:block;margin:6px 0">语义 ID / 生成式检索<br><span style="font-size:11px;color:var(--dim)">推荐/广告已落地，网页搜索观望</span></div>
+    </div>
+    <div class="box tight mb0"><h3 style="color:var(--a4);font-size:16px">③ 排序</h3>
+      <div class="pill" style="border-color:var(--a1);display:block;margin:6px 0">static rank / 手工特征</div>
+      <div class="pill" style="border-color:var(--a2);display:block;margin:6px 0">GBDT 粗排 → 深度精排</div>
+      <div class="pill" style="border-color:var(--a2);display:block;margin:6px 0">ColBERT / CE 重排</div>
+      <div class="pill" style="border-color:var(--a3);display:block;margin:6px 0">LLM 置换蒸馏排序器<br><span style="font-size:11px;color:var(--dim)">RankGPT→RankZephyr→440M</span></div>
+    </div>
+    <div class="box tight mb0"><h3 style="color:var(--a4);font-size:16px">④ 结果呈现</h3>
+      <div class="pill" style="border-color:var(--a1);display:block;margin:6px 0">十条蓝链</div>
+      <div class="pill" style="border-color:var(--a3);display:block;margin:6px 0">RAG 生成答案 + 引用</div>
+      <div class="pill" style="border-color:var(--a3);display:block;margin:6px 0">Deep Research 长报告</div>
+      <div class="pill" style="border-color:var(--a3);display:block;margin:6px 0">浏览器内 Agent 执行</div>
+    </div>
+    <div class="box tight mb0"><h3 style="color:var(--a4);font-size:16px">⑤ 评估闭环</h3>
+      <div class="pill" style="border-color:var(--a1);display:block;margin:6px 0">A/B · 点击日志</div>
+      <div class="pill" style="border-color:var(--a2);display:block;margin:6px 0">人工质量评估员</div>
+      <div class="pill" style="border-color:var(--a3);display:block;margin:6px 0">LLM Judge 标注（UMBRELA）</div>
+      <div class="pill" style="border-color:var(--a3);display:block;margin:6px 0">RAGAS 生成质量指标</div>
+      <div class="pill" style="border-color:var(--a3);display:block;margin:6px 0">Judge→训练数据飞轮</div>
+    </div>
+  </div>
+  <div class="loop">⑤ ⟲ ①②③　·　<span style="color:var(--a1)">■ 符号时代</span>　<span style="color:var(--a2)">■ 嵌入时代</span>　<span style="color:var(--a3)">■ LLM 时代</span>　——　没有一层被彻底扔掉：倒排索引仍在召回里，双塔仍是 RAG 的地基，LLM 层层叠在其上</div>
+  <div class="box tight" style="margin-top:12px">
+    <span class="lbl i">全片最重要的一个观察</span>
+    <p class="note">工业系统的演进不是替换赛，而是<b>叠层赛</b>：每个时代的技术都沉淀为下一个时代的基础设施。蒸馏（③里的 LLM 排序器、②里的 Gecko 嵌入）是让新层能"住进"旧层延迟预算的通用手段；Judge 飞轮（⑤）则是让整栋楼持续自我翻新的引擎。</p>
+  </div>
+</section>
+
+<!-- ============ 四大厂对照表 ============ -->
+<section class="slide" style="--acc:var(--a4)">
+  <div class="kicker"><b>终幕</b> · 四大厂 × 骨架五环节</div>
+  <h2>同一张骨架，四种改装方案</h2>
+  <table style="font-size:13.5px">
+    <tr><th style="width:90px">环节</th><th>Meta</th><th>Google</th><th>OpenAI</th><th>Perplexity</th></tr>
+    <tr><td><b>查询理解</b></td><td>Que2Search（XLM 多任务）→ AI Mode 用 Muse Spark（LLM）理解自然语言意图</td><td>定制 Gemini 2.5 做 query fan-out，均值约 9 条子查询，Deep Search 数百条</td><td>推理模型（o3 / GPT-5.x）决定何时搜索、如何拆任务</td><td>查询分解 + 模型路由（简单题小模型，难题前沿模型）</td></tr>
+    <tr><td><b>召回</b></td><td>Unicorn 倒排 + EBR 向量混合；语料为 Groups/Reels/IG/Threads 公开内容 + Bing/自建爬虫</td><td>倒排 + RankEmbed 双塔（反垄断庭审披露）；AI Overviews 据报道用独立的 FastSearch</td><td>依赖 Bing 索引（未完全独立）+ 自建爬虫追赶（抓取量 2025-08 起约 3 倍）</td><td>完全自建索引（超 2000 亿 URL），ML 预测索引优先级，按需爬取</td></tr>
+    <tr><td><b>排序</b></td><td>piRank / Que2Engage：相关性 + engagement 多目标，强社交个性化</td><td>RankEmbed 神经信号 + 传统信号多阶段漏斗；人工评估员数据参与训练</td><td>高度复现 Bing 排序（引用与 Bing 前十重合 87%），自做二次筛选</td><td>段落级排序与抽取，再交给生成模型合成</td></tr>
+    <tr><td><b>结果呈现</b></td><td>AI Mode 生成式摘要，答案来自"人们公开说了什么"</td><td>三层共存：蓝链 + AI Overviews 卡片 + 独立 AI Mode 标签页</td><td>对话回答 / Deep Research 报告 / Atlas 浏览器 Agent；2026 起 sponsored 卡片</td><td>RAG 回答 + 行内引用；Comet 浏览器内 agent 操作</td></tr>
+    <tr><td><b>评估闭环</b></td><td>未公开；Forbes 指出信源加权与错误信息治理"未知"</td><td>人工评估员 + 海量行为 A/B（体系因反垄断被部分披露）</td><td>用户反馈 / RLHF 为主，披露有限</td><td>另类经济闭环：Comet Plus 出版商 80/20 收入分成激励内容质量</td></tr>
+  </table>
+  <p class="note"><b>一句话总结</b>：Meta 检索"社交图谱里人说的话"，Google 渐进改造以保住广告楼，OpenAI 从对话反向补检索，Perplexity 无包袱地从零造教科书式 RAG 全栈。</p>
+</section>
+
+<!-- ============ Meta 线 ============ -->
+<section class="slide" style="--acc:var(--a4)">
+  <div class="kicker"><b>终幕</b> · Meta 深读</div>
+  <h2>十三年一条线：故事的首尾呼应</h2>
+  <div class="flow" style="--acc:var(--a4);margin-top:8px">
+    <div class="fbox">Unicorn<small>2013 · 倒排+图算子<br>符号时代</small></div><div class="far">→</div>
+    <div class="fbox">EBR<small>2020 · 向量混合召回<br>嵌入时代</small></div><div class="far">→</div>
+    <div class="fbox">Que2Search<small>2021 · XLM 多模态双塔</small></div><div class="far">→</div>
+    <div class="fbox">Que2Engage<small>2023 · Marketplace 多目标</small></div><div class="far">→</div>
+    <div class="fbox hi">AI Mode<small>2026-06 · Muse Spark 驱动<br>LLM 时代</small></div>
+  </div>
+  <div class="cols" style="margin-top:14px">
+    <div>
+      <div class="box tight">
+        <span class="lbl i">2026-06-15：Facebook 上线 AI Mode</span>
+        <p class="note">由 MSL（Meta Superintelligence Labs）首个自研闭源模型 <b>Muse Spark</b>（2026-04 发布）驱动的自然语言问答式搜索。答案来源是 Facebook Groups、Reels、Instagram、Threads 的<b>公开社交内容</b>，辅以 Bing 索引与自建爬虫的网页补充——检索对象是"社交图谱节点"而非网页文档，这是它与其余三家的根本差异。</p>
+      </div>
+      <div class="box tight">
+        <span class="lbl n">未知数</span>
+        <p class="note">Forbes 报道明确指出：AI Mode 如何加权信息源、如何应对错误信息，<b>外界不得而知</b>——⑤评估闭环是这条十三年演进线上目前最不透明的一环。</p>
+      </div>
+    </div>
+    <div>
+      <div class="stats" style="--acc:var(--a4)">
+        <div class="stat"><div class="num">$10B+/年</div><div class="cap">摩根士丹利分析师预估营收：若 10 亿用户留存、10% 日查询货币化</div></div>
+        <div class="stat"><div class="num">+5%</div><div class="cap">消息公布当日（2026-06-15）Meta 股价涨幅</div></div>
+        <div class="stat"><div class="num">30 亿</div><div class="cap">Facebook 月活基本盘——AI 搜索直接对标 Google</div></div>
+      </div>
+      <div class="box tight">
+        <span class="lbl p">叙事的闭环</span>
+        <p class="note">第一幕的伏笔在此收尾：<b>同一家公司、同一套骨架，三个时代连续演进而非推倒重来</b>。Unicorn 的倒排索引至今仍是召回层的一部分；EBR 的混合检索思想延续到 AI Mode 的多源召回——工业搜索的历史是叠加史。</p>
+      </div>
+    </div>
+  </div>
+  <div class="refline">来源：<a href="https://www.forbes.com/sites/maryroeloffs/2026/06/15/facebook-launches-search-engine-ai-tool-that-could-make-meta-10-billion-a-year-analyst-says/">Forbes 2026-06-15</a> · <a href="https://about.fb.com/news/2026/06/new-ai-tools-to-help-you-make-things-happen-on-facebook/">Meta 官方新闻稿</a></div>
+</section>
+
+<!-- ============ 三种路线 ============ -->
+<section class="slide" style="--acc:var(--a4)">
+  <div class="kicker"><b>终幕</b> · Google · OpenAI · Perplexity</div>
+  <h2>守成者、闯入者、无包袱者</h2>
+  <div class="cols3">
+    <div class="box mb0">
+      <h3 style="color:var(--a2)">Google：渐进改造</h3>
+      <p class="note">三层产品共存（蓝链 + AI Overviews + AI Mode），在不砸万亿广告楼的前提下嫁接生成式体验。AI Overviews 覆盖约半数查询（第三方测算 21%–65% 区间）；AI Mode 月活 2026 官宣超 10 亿、查询量季度翻倍。</p>
+      <p class="note"><b>左右互搏的代价</b>：AIO 场景自然点击率一度暴跌 61%；引荐给网站的流量同比约 -33%；但官方称搜索广告收入仍 +17~19%。<b>反垄断余波</b>：法院令其向合格竞争对手共享 RankEmbed 相关用户数据。</p>
+    </div>
+    <div class="box mb0">
+      <h3 style="color:var(--a3)">OpenAI：反向补链</h3>
+      <p class="note">唯一从对话切入、反向补齐检索的玩家：SearchGPT（2024-07）→ ChatGPT Search（2024-10）→ Deep Research（2025-02）→ ChatGPT Agent（2025-07）→ Atlas 浏览器（2025-10）→ 广告上线（2026-01）。</p>
+      <p class="note">召回仍依赖 Bing（引用与 Bing 前十重合 87%），自建爬虫抓取量 2025-08 起约 3 倍扩张。占 AI 助手流量约 60.7%，每周搜索查询 2.5~5 亿次。<b>它在把"搜索"重新定义为"可执行任务的浏览器 Agent"</b>。</p>
+    </div>
+    <div class="box mb0">
+      <h3 style="color:var(--a4)">Perplexity：教科书全栈</h3>
+      <p class="note">无存量广告包袱，从零自建"检索+生成"：自建索引超 2000 亿 URL、PerplexityBot 按需爬取、段落级排序、模型路由（Sonar 自研 + 前沿模型分层调用）、行内引用标配。</p>
+      <p class="note">Comet 浏览器 2025-10 免费开放；Comet Plus 与出版商 80/20 分成——<b>唯一公开宣称不做广告</b>的一家。2026-06 融资约 2 亿美元、估值约 200 亿美元（ARR 各信源 2~4.5 亿美元不一，取区间为宜）。</p>
+    </div>
+  </div>
+  <div class="box tight" style="margin-top:14px">
+    <span class="lbl i">放回骨架看</span>
+    <p class="note">四家的差异本质上是<b>"哪个环节自研、哪个环节外包"</b>的差异：Google 五环全自研且历史包袱最重；Perplexity 五环全自研且包袱最轻；OpenAI 外包②③（Bing）自研①④；Meta 复用自家②③老栈、语料独一份。骨架是同一张，商业处境决定改装顺序。</p>
+  </div>
+</section>
+
+<!-- ============ 行业冲击 ============ -->
+<section class="slide" style="--acc:var(--a4)">
+  <div class="kicker"><b>终幕</b> · 生态冲击</div>
+  <h2>零点击时代 <span class="en">当答案不再需要点击</span></h2>
+  <div class="stats" style="--acc:var(--a4)">
+    <div class="stat"><div class="num">68.01%</div><div class="cap">2026 年前四个月 Google 搜索零点击率（SparkToro/Similarweb 口径；2024 年为 60.45%）</div></div>
+    <div class="stat"><div class="num">83%</div><div class="cap">触发 AI Overviews 的查询的零点击率（未触发约 60%）</div></div>
+    <div class="stat"><div class="num">8% vs 15%</div><div class="cap">有/无 AI Overview 时用户点击传统结果的概率（Pew 行为研究）</div></div>
+    <div class="stat"><div class="num">17%</div><div class="cap">AIO 引用来源来自自然结果前十的比例——2024 年年中还是 76%，AI 摘要与排名正在"脱钩"</div></div>
+  </div>
+  <div class="cols">
+    <div class="box tight">
+      <span class="lbl i">对内容生态</span>
+      <p class="note">出版商引荐流量同比约 -33%；被 AIO 引用的品牌反而获得 +35% 自然点击与 +91% 付费点击——<b>流量从"排名博弈"转向"被引用博弈"</b>，SEO 正在变成 GEO（Generative Engine Optimization）。Perplexity 的出版商分成，是对这一断裂的一种制度性回应。</p>
+    </div>
+    <div class="box tight">
+      <span class="lbl p">但要保持比例感</span>
+      <p class="note">Google 仍占传统搜索约 90% 份额；所有 AI 聊天助手合计引荐流量仍远小于 Google（约为 DuckDuckGo 单家的 1/5）。2026 年年中的真实图景：<b>AI 搜索蚕食的是信息类/研究类查询，导航与交易查询仍牢牢留在传统搜索</b>。上述第三方数据方法论各异，宜作趋势参考而非精确值。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 演进总结 ============ -->
+<section class="slide" style="--acc:var(--gold)">
+  <div class="kicker"><b>尾声</b> · 演进总结</div>
+  <h2>三条贯穿十三年的线</h2>
+  <div class="cols3">
+    <div class="box mb0">
+      <h3 style="color:var(--a1)">① 相关性定义的三次跃迁</h3>
+      <p class="note">词条命中（集合运算）→ 空间距离（向量检索）→ <b>生成似然</b>（DSI 的 \(P(j|q)\)、RAG 的答案生成）。每次跃迁都换掉召回层的世界观，但旧世界观都活了下来，成了新世界观的兜底与地基。</p>
+    </div>
+    <div class="box mb0">
+      <h3 style="color:var(--a2)">② 延迟预算与蒸馏的永恒博弈</h3>
+      <p class="note">最聪明的模型永远太慢：cross-encoder 如此，LLM 更甚。解法始终同构——<b>离线用贵的，在线用蒸的</b>：EBR 的人工标注回流、Gecko 的合成数据、RankGPT 的置换蒸馏、查询改写的 seq2seq 蒸馏。级联漏斗是这场博弈的永久停战线。</p>
+    </div>
+    <div class="box mb0">
+      <h3 style="color:var(--a3)">③ 评估从成本中心变成引擎</h3>
+      <p class="note">人工标注（贵、慢、稀缺）→ LLM Judge（便宜、快、可复制）后，⑤评估闭环从"验收环节"升级为<b>训练数据的生产车间</b>——Judge 标注 → 蒸馏 → 上线 → 反馈校准 Judge。谁的飞轮转得快，谁的搜索质量迭代就快。</p>
+    </div>
+  </div>
+  <div class="box" style="margin-top:16px">
+    <span class="lbl i">给学习者的一句收尾</span>
+    <p>读这些论文时别把它们当孤立的"方法"，把每一篇放回骨架里问三个问题：<em>它替换了哪个环节？它靠什么塞进那个环节的延迟预算？它的训练数据从闭环的哪里来？</em>——答完这三问，工业级搜索系统的全貌就在你脑子里了。</p>
+  </div>
+</section>
+
+<!-- ============ 附录 开场 ============ -->
+<section class="slide act-open" id="appendix" style="--acc:var(--gold)">
+  <div class="big-num">APPENDIX</div>
+  <h1 style="color:var(--gold)">附录 · 经典链路补遗</h1>
+  <p class="tag-line">对照王树森《搜索引擎技术》开源教程逐节体检：正片漏讲了什么？<br>这些"老"概念在 <em>2026 年的搜索系统里还在用吗？</em>——每一页都附现状核查。</p>
+  <div class="acts-row">
+    <span class="pill on" style="--acc:var(--gold)">评价体系与满意度信号</span>
+    <span class="pill on" style="--acc:var(--gold)">TF-IDF / BM25</span>
+    <span class="pill on" style="--acc:var(--gold)">经典 NLU 链</span>
+    <span class="pill on" style="--acc:var(--gold)">相关性 BERT 四段式</span>
+    <span class="pill on" style="--acc:var(--gold)">融合排序 · 缓存 · 查询词推荐</span>
+  </div>
+  <p class="note" style="margin-top:26px;max-width:900px">来源说明：教程 PDF 未能直接解析，章节结构取自 GitHub README（一手），技术细节经多份公开课程笔记交叉印证（二手，已标注）；"2026 现状"结论均附独立证据链接。</p>
+</section>
+
+<!-- ============ 附录 A1 对照总表 ============ -->
+<section class="slide" style="--acc:var(--gold)">
+  <div class="kicker"><b>附录</b> · A1 · 对照总表</div>
+  <h2>逐节体检：覆盖情况 × 2026 现状</h2>
+  <table style="font-size:13.5px">
+    <tr><th>教程章节概念</th><th>正片覆盖</th><th style="width:52%">2026 现状（证据见后页）</th></tr>
+    <tr><td><b>相关性分档 + nDCG/AUC/PNR</b></td><td style="color:var(--a3b)">未覆盖 → A2</td><td><b>仍是黄金标准</b>：Google Rater Guidelines 2025-09 仍在更新；TREC 用 UMBRELA 辅助但保留人工</td></tr>
+    <tr><td><b>用户满意度行为信号</b></td><td style="color:var(--a3b)">未覆盖 → A3</td><td><b>仍是 A/B 核心指标</b>，与 LLM Judge 构成离线-在线双层评价</td></tr>
+    <tr><td><b>TF-IDF / BM25 / 词距</b></td><td style="color:var(--a3b)">只当基线提过 → A4</td><td><b>角色降级不退场</b>：hybrid 检索的 lexical 通道，RRF 融合成默认架构</td></tr>
+    <tr><td><b>分词 / Term Weight / 类目意图</b></td><td style="color:var(--a3b)">未覆盖 → A5</td><td>分词仍是倒排刚需；Term Weight 被学习型稀疏检索（SPLADE/ELSER）接管；意图识别正被 LLM/蒸馏小模型替代</td></tr>
+    <tr><td><b>相关性 BERT 训练与推理</b></td><td style="color:var(--a2)">部分覆盖（蒸馏章）→ A6</td><td><b>仍是精排主力</b>（RankEmbed 佐证），与 LLM 推理型排序器分层并存</td></tr>
+    <tr><td><b>倒排/向量/缓存召回</b></td><td style="color:var(--a2)">倒排+向量已覆盖；缓存 → A7</td><td>缓存演化出语义缓存（semantic cache）新形态，RAG 时代更重要</td></tr>
+    <tr><td><b>融合排序 / LTR</b></td><td style="color:var(--a3b)">只提过级联 → A7</td><td><b>LambdaMART 仍是基石</b>（Airbnb 2025 原话），但 DNN 开始局部反超</td></tr>
+    <tr><td><b>查询词推荐（SUG/相关搜索）</b></td><td style="color:var(--a3b)">完全未覆盖 → A8</td><td>经典联想仍在，且演化为 AI 搜索的 follow-up 追问建议</td></tr>
+  </table>
+  <p class="note"><b>体检结论</b>：正片讲的是"骨架如何被换血"，教程补的是"骨架的日常器官"——评价地基、词法层、融合层。两者拼起来才是完整的工业系统。</p>
+</section>
+
+<!-- ============ 附录 A2 评价指标 ============ -->
+<section class="slide" style="--acc:var(--gold)">
+  <div class="kicker"><b>附录</b> · A2 · 评价体系（上）：分档与三层指标</div>
+  <h2>先会打分，才谈得上迭代 <span class="en">Grading · AUC / PNR / DCG</span></h2>
+  <div class="cols">
+    <div>
+      <div class="box tight">
+        <span class="lbl i">相关性分档</span>
+        <p class="note">人工把 query-doc 相关度标成 <b>4 档（高 / 中高 / 中低 / 低）</b>，标注量级达几十万对；训练时映射为标量（如 0, 1/3, 2/3, 1）。这正是正片 Judge 章里 LLM 学着去打的那种标签——<b>先有人工分档体系，才有 UMBRELA 的 0-3 分 prompt</b>。</p>
+      </div>
+      <div class="box">
+        <span class="lbl m">三层离线指标（pointwise / pairwise / listwise）</span>
+        <p class="note"><b>AUC</b>：随机取一正一负样本，模型给正样本更高分的概率。<br><b>PNR 正逆序比</b>：预测顺序与标注一致的样本对数 ÷ 不一致的对数，越大越好。</p>
+        <div class="formula">$$DCG_p=rel_1+\sum_{i=2}^{p}\frac{rel_i}{\log_2 i}\qquad nDCG_p=\frac{DCG_p}{IDCG_p}$$</div>
+        <p class="note">位置折损：排得越靠后，相关文档的贡献被 \(\log_2 i\) 打得越狠——对应"用户从上往下看"的行为假设。\(IDCG\)=理想排序下的 DCG，用于跨 query 归一化。（此为课程版写法：首位不折损；标准文献亦常写 \(\log_2(i+1)\)。）</p>
+      </div>
+    </div>
+    <div>
+      <div class="box tight">
+        <span class="lbl a">三层指标怎么配合用</span>
+        <div class="flow" style="--acc:var(--gold)">
+          <div class="fbox">AUC / PNR<small>离线快速迭代<br>排查模型问题</small></div><div class="far">→</div>
+          <div class="fbox hi">nDCG<small>贴近真实排序体验<br>离线人工 / 在线小流量</small></div><div class="far">→</div>
+          <div class="fbox">线上 A/B<small>行为信号裁决（A3）</small></div>
+        </div>
+      </div>
+      <div class="box">
+        <span class="lbl p">2026 现状：还在用吗？</span>
+        <p class="note"><b>仍是黄金标准，且与 LLM Judge 分工明确</b>：Google《Search Quality Rater Guidelines》2025-09-11 仍在更新（新增 AI Overview 评分示例）；TREC 2025 RAG Track 依旧以人工 0-4 档 + nDCG@30/100 为主，UMBRELA 式 LLM 标注用于规模化补位并与人工做一致性对比。正片 Judge 章的飞轮，转的正是这套分档-nDCG 地基。</p>
+      </div>
+    </div>
+  </div>
+  <div class="refline">来源：王树森《搜索引擎技术》第 1-2 章（细节经课程笔记二手印证）· <a href="https://guidelines.raterhub.com/searchqualityevaluatorguidelines.pdf">Google Rater Guidelines (2025-09)</a> · <a href="https://trec-rag.github.io/annoucements/evaluation/">TREC RAG 评估</a></div>
+</section>
+
+<!-- ============ 附录 A3 满意度信号 ============ -->
+<section class="slide" style="--acc:var(--gold)">
+  <div class="kicker"><b>附录</b> · A3 · 评价体系（下）：满意度的行为信号</div>
+  <h2>用户用手指投票 <span class="en">Behavioral Satisfaction Signals</span></h2>
+  <div class="cols">
+    <div>
+      <div class="box">
+        <span class="lbl m">三个核心信号</span>
+        <div class="formula">$$\text{有点比}=\frac{\text{有点击的搜索次数}}{\text{搜索总次数}}\;(\approx 70\%)\qquad \text{首屏有点比}\approx 60\%$$</div>
+        <p class="note"><b>有点比</b>：搜完至少点了一个结果的比例；<b>首屏有点比</b>更严格（只算首屏内点击，数值必然更低），直接反映排序头部质量。<br><b>换词率</b>：时间窗口内前后两次搜索的 query 编辑距离很小（同一意图换个说法重搜）的比例——<em>换词 = 用手指说"没搜到"</em>，是最诚实的负向信号。</p>
+      </div>
+      <div class="box tight">
+        <span class="lbl i">每个信号都有偏差</span>
+        <p class="note">点击被标题党与位置偏差污染；首屏点击对卡片大小敏感；换词率误伤多轮探索型搜索。教程的结论与正片 Judge 章的偏差讨论完全同构：<b>代理指标必须组合使用、互相校验</b>。</p>
+      </div>
+    </div>
+    <div>
+      <div class="box tight">
+        <span class="lbl a">离线-在线双层评价体系</span>
+        <div class="flow" style="--acc:var(--gold)">
+          <div class="fbox">离线<small>人工分档 + nDCG/AUC/PNR<br>（+ LLM Judge 规模化）</small></div><div class="far">⇄</div>
+          <div class="fbox hi">在线<small>有点比 · 首屏有点比<br>换词率 · A/B 实验</small></div>
+        </div>
+        <p class="note">正片 Judge 飞轮里"真实用户反馈校准 Judge"的那半环，具体内容就是这些行为信号——<b>附录在此补上了飞轮的燃料成分表</b>。</p>
+      </div>
+      <div class="box">
+        <span class="lbl p">2026 现状</span>
+        <p class="note"><b>仍是 A/B 实验的核心指标族</b>，且在 AI 搜索时代愈发关键：生成式答案让"点击"变稀缺（零点击率 68%），迫使各家寻找新的满意度代理——停留时长、追问率、答案复制率等。Bing 的 Thomas et al. 正是用"真实搜索者偏好"当黄金集来校准 LLM 标注——经典信号成了新方法的地基。</p>
+      </div>
+    </div>
+  </div>
+  <div class="refline">来源：王树森《搜索引擎技术》"什么决定用户满意度"（二手笔记印证，经验数值为课程口径）· <a href="https://arxiv.org/abs/2309.10621">Thomas et al. (SIGIR 2024)</a></div>
+</section>
+
+<!-- ============ 附录 A4 BM25 ============ -->
+<section class="slide" style="--acc:var(--gold)">
+  <div class="kicker"><b>附录</b> · A4 · 文本匹配分数</div>
+  <h2>正片欠 BM25 的一个公式 <span class="en">TF-IDF · BM25 · Proximity</span></h2>
+  <div class="cols">
+    <div>
+      <div class="box">
+        <span class="lbl m">BM25</span>
+        <div class="formula">$$\mathrm{score}(q,d)=\sum_{t\in q}IDF(t)\cdot\frac{f(t,d)\,(k_1+1)}{f(t,d)+k_1\Big(1-b+b\cdot\frac{|d|}{avgdl}\Big)}$$</div>
+        <p class="note"><b>\(k_1\)（词频饱和，1.2–2.0）</b>：词频的贡献非线性饱和——一个词出现 3 次和 30 次，相关性差别不大。这是 BM25 对 TF-IDF 的核心洞察：<em>词频与相关性不是线性关系</em>。<br><b>\(b\)（长度归一化，0–1）</b>：长文档天然词多占便宜，按 \(|d|/avgdl\) 折算校正。<br><b>IDF</b>：全库罕见词权重高（"量子"比"的"值钱）。</p>
+      </div>
+      <div class="box tight">
+        <span class="lbl i">词距 Proximity（OkaTP / BM25TP）</span>
+        <p class="note">"深度"与"学习"在文档里<b>挨得近</b>，比分别散落在无关段落更可能在讨论"深度学习"——词距分数补足词袋模型丢失的顺序信息。</p>
+      </div>
+    </div>
+    <div>
+      <div class="box tight">
+        <span class="lbl p">在骨架中的位置变迁</span>
+        <p class="note">教程明确指出：2020 年前 TF-IDF/BM25/词距是<b>排序阶段</b>的核心人工特征；BERT 兴起后排序普遍弃用文本匹配分数，它退守<b>②召回（文本通道）</b>做候选筛选——与正片"倒排作为混合召回一路"的叙述严丝合缝。</p>
+      </div>
+      <div class="box">
+        <span class="lbl p">2026 现状：降级不退场</span>
+        <p class="note"><b>Hybrid 检索的默认 lexical 通道</b>：Elasticsearch（8.9 起）、OpenSearch、Vespa 都把 BM25 + 向量 + RRF（倒数排名融合）作为官方推荐架构；2025 年研究仍显示 BM25 在 BEIR 零样本场景配 reranker 可比肩最佳 dense 模型。<b>演化方向</b>：静态 IDF 权重正被<b>学习型稀疏检索</b>（SPLADE、Elastic ELSER——BERT 给每个词学权重、仍存倒排索引）接管——倒排这个数据结构没死，里面的分数换成了神经网络算的。</p>
+      </div>
+    </div>
+  </div>
+  <div class="refline">来源：王树森《搜索引擎技术》"文本匹配分数"（二手印证）· <a href="https://opensearch.org/blog/building-effective-hybrid-search-in-opensearch-techniques-and-best-practices/">OpenSearch hybrid 实践</a> · <a href="https://www.pinecone.io/learn/splade/">SPLADE</a> · <a href="https://arxiv.org/pdf/2504.12879">BM25 基线研究 (2025)</a></div>
+</section>
+
+<!-- ============ 附录 A5 NLU 链 ============ -->
+<section class="slide" style="--acc:var(--gold)">
+  <div class="kicker"><b>附录</b> · A5 · 查询词处理经典链路</div>
+  <h2>HyDE 之前，query 先要过这条流水线 <span class="en">The Classical QP Pipeline</span></h2>
+  <div class="flow" style="--acc:var(--gold)">
+    <div class="fbox">原始 query</div><div class="far">→</div>
+    <div class="fbox">分词<small>字典最大匹配 + 新词发现<br>深度学习序列标注（BERT）</small></div><div class="far">→</div>
+    <div class="fbox">Term Weight<small>核心词 vs 修饰词<br>序列标注 / 回归建模</small></div><div class="far">→</div>
+    <div class="fbox">类目 / 意图识别<small>时效性 · 地域性意图</small></div><div class="far">→</div>
+    <div class="fbox">改写<small>纠错 · 同义扩展</small></div><div class="far">→</div>
+    <div class="fbox hi">召回 / 排序</div>
+  </div>
+  <div class="cols" style="margin-top:14px">
+    <div>
+      <div class="box tight">
+        <span class="lbl i">为什么每一环都存在</span>
+        <p class="note"><b>分词</b>决定倒排索引的 key 长什么样；<b>Term Weight</b> 决定哪些词"必须命中"哪些可忽略（也回头给 BM25 加权）；<b>意图</b>决定走哪条召回/加什么权（时效意图→提升新内容）；<b>改写</b>治词汇不匹配的第一道药方。整条链的输出高度可缓存——高频 query 的 QP 结果直接查表复用（详见 A7）。</p>
+      </div>
+      <div class="box tight">
+        <span class="lbl m">Term Weight 建模</span>
+        <p class="note">序列标注（BiLSTM+CRF / BERT）或回归（上下文词向量 + 线性头）输出每词权重；业界常按阈值分三档（核心实体 &gt;0.66，限定词 0.33–0.66，虚词 &lt;0.33——阈值为业界惯例，课程原文未确认）。</p>
+      </div>
+    </div>
+    <div>
+      <div class="box">
+        <span class="lbl p">2026 现状：正被 LLM 收编成"一个模型"</span>
+        <ul class="clean" style="--acc:var(--gold)">
+          <li><b>分词</b>：倒排侧仍是刚需（jieba 的搜索引擎模式仍在维护）——LLM 的 BPE tokenizer 服务模型输入，与检索分词是两套体系，互不替代。</li>
+          <li><b>意图/类目识别</b>：变化最剧烈的一环——小红书 <b>QP-OneModel</b>（2026）用统一生成式 LLM 替换整条 BERT 判别式 pipeline；Amazon <b>REIC</b>（2025）用 RAG+LLM 做意图分类免重训；Amazon 的 rationale-guided distillation 把 7B LLM 蒸成 110M 小模型、快 50 倍。</li>
+          <li><b>改写</b>：已在正片主题二讲透（LLM 离线改写 + 蒸馏上线）。</li>
+        </ul>
+        <p class="note"><b>格局</b>：流水线的"工序"都还在，但多道工序正合并进一个（蒸馏过的）LLM——与正片"蒸馏是胶水"的结论互为印证。</p>
+      </div>
+    </div>
+  </div>
+  <div class="refline">来源：王树森《搜索引擎技术》第 3 章（部分小节仅有标题，细节经二手印证）· <a href="https://arxiv.org/html/2602.09901">QP-OneModel</a> · <a href="https://arxiv.org/abs/2506.00210">REIC</a> · <a href="https://github.com/fxsjy/jieba">jieba</a></div>
+</section>
+
+<!-- ============ 附录 A6 相关性 BERT ============ -->
+<section class="slide" style="--acc:var(--gold)">
+  <div class="kicker"><b>附录</b> · A6 · 相关性 BERT 的训练与推理</div>
+  <h2>四段式训练：工业相关性模型的标准配方</h2>
+  <div class="cols">
+    <div>
+      <div class="box">
+        <span class="lbl m">训练：四个阶段</span>
+        <div class="flow" style="--acc:var(--gold)">
+          <div class="fbox">① 预训练<small>MLM · 最好用自家<br>文档库做领域预训练</small></div><div class="far">→</div>
+          <div class="fbox hi">② 后预训练<small>点击/交互日志当弱监督<br>[q,d] 对 + 点击标签 + MLM 联合</small></div><div class="far">→</div>
+          <div class="fbox">③ 微调<small>人工 4 档标注<br>映射 0~1 分数回归</small></div><div class="far">→</div>
+          <div class="fbox">④ 蒸馏<small>大模型 → 线上小模型</small></div>
+        </div>
+        <p class="note"><b>配方逻辑</b>：无标注文本学语言 → 海量弱标注点击学"相关性语感" → 小规模精标注对准任务 → 压缩上线。这是应对"标注稀缺、点击海量"矛盾的标准解，也是正片 Gecko/RankGPT 蒸馏叙事的<b>前 LLM 版本</b>——师生框架早已是工业惯例，LLM 只是换了更强的老师。</p>
+      </div>
+    </div>
+    <div>
+      <div class="box tight">
+        <span class="lbl a">推理：按链路分层部署</span>
+        <p class="note"><b>粗排</b>：2–4 层交叉 BERT 或双塔 BERT（文档向量离线预计算存 KV 表，线上只算 query 向量 + 内积）；<b>精排</b>：4–12 层交叉 BERT。三类可叠加的降本手段：<b>蒸馏、int8 量化、输入截断</b>（长文换摘要）。与正片第二幕"双塔 vs 交叉编码器"光谱完全对应——这里给出的是层数级的工程刻度。</p>
+      </div>
+      <div class="box">
+        <span class="lbl p">2026 现状：仍是精排主力，与 LLM 分层并存</span>
+        <ul class="clean" style="--acc:var(--gold)">
+          <li>Google 反垄断庭审披露：核心排序模型 <b>RankEmbed（BERT 系）</b>仍在服役，2025-09 被判令共享训练数据。</li>
+          <li>淘宝 <b>TaoSR1</b>（2025）原话："BERT 擅长语义匹配但缺推理能力"——于是用 CoT+RL 的 LLM 思考模型处理否定/平替等难 query，<b>BERT 打底、LLM 补难例</b>。</li>
+          <li><b>Rank-DistiLLM</b>（2024-25）把 RankGPT 系能力蒸回 cross-encoder，效果媲美、效率高几个数量级——四段式配方的第④步如今由 LLM 当老师。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="refline">来源：王树森《搜索引擎技术》"相关性 BERT 模型"两节（二手印证）· <a href="https://ppc.land/googles-rankembed-system-forced-to-share-secrets-in-antitrust-remedy/">RankEmbed 披露</a> · <a href="https://arxiv.org/abs/2508.12365">TaoSR1</a> · <a href="https://arxiv.org/html/2405.07920v4">Rank-DistiLLM</a></div>
+</section>
+
+<!-- ============ 附录 A7 融合排序 + 缓存 ============ -->
+<section class="slide" style="--acc:var(--gold)">
+  <div class="kicker"><b>附录</b> · A7 · 融合排序与缓存召回</div>
+  <h2>最后一米的分数融合，与最快的一条捷径</h2>
+  <div class="cols">
+    <div>
+      <div class="box">
+        <span class="lbl m">多目标融合：从规则到模型</span>
+        <div class="formula">$$\mathrm{Score}(q,d)=w_{rel}\,\mathrm{Rel}(q,d)+w_{ctr}\,\mathrm{CTR}(q,d)+w_{qual}\,\mathrm{Qual}(d)+w_{time}\,\mathrm{Fresh}(d)$$</div>
+        <p class="note">相关性、点击率、质量、时效各算各的分，最后融合出一个排序分。教程的演进建议：<b>初期用人工加权和</b>（可控、可解释、按线上表现调权重）→ 数据充足后<b>换模型融合</b>（LTR：让模型学怎么组合）。单目标必翻车：只优化相关性会推出"相关但过时/低质"的结果。</p>
+      </div>
+      <div class="box tight">
+        <span class="lbl i">缓存召回</span>
+        <p class="note">通用搜索里<b>几百万个高频 query 覆盖每天大部分请求</b>——对它们把 QP 结果、召回结果直接缓存，命中即跳过整条计算链。查询分布的头部集中性，是搜索系统最便宜的加速器。</p>
+      </div>
+    </div>
+    <div>
+      <div class="box">
+        <span class="lbl p">2026 现状 · LTR/LambdaMART</span>
+        <p class="note">Airbnb 2025 论文开篇原话：pairwise LTR 是"当今搜索排序技术栈的<b>基石（bedrock）</b>"，其改进版仍在线上部署；RecSys 2025 的 8 周生产 A/B 显示简单 DNN 在点击与营收上<b>开始反超</b>强 GBDT 基线——树模型 vs 神经网络的格局在松动但远未定论。LLM 的角色在上游造语义特征，尚无取代底层 LTR 框架的工业案例。</p>
+      </div>
+      <div class="box">
+        <span class="lbl p">2026 现状 · 缓存的新形态</span>
+        <p class="note">从"精确字符串缓存"进化为 <b>semantic cache</b>：在 embedding 空间匹配相似 query，复用检索结果甚至生成好的答案（RAG 场景可削减 30–70% 的 LLM 调用，据 2025 年系统论文与工程实践；大厂官方案例仍少，证据中等）。生成式答案越贵，缓存越值钱——老概念在 LLM 时代反而升值。</p>
+      </div>
+    </div>
+  </div>
+  <div class="refline">来源：王树森《搜索引擎技术》第 4-5 章（"融合模型训练方法"一节仅有标题）· <a href="https://arxiv.org/abs/2505.09795">Airbnb LTR (2025)</a> · <a href="https://arxiv.org/abs/2507.20753">GBDT vs DNN (RecSys 2025)</a> · <a href="https://arxiv.org/abs/2604.26176">CacheRAG</a></div>
+</section>
+
+<!-- ============ 附录 A8 查询词推荐 ============ -->
+<section class="slide" style="--acc:var(--gold)">
+  <div class="kicker"><b>附录</b> · A8 · 查询词推荐</div>
+  <h2>从下拉联想到 AI 追问 <span class="en">Query Suggestion → Follow-up Prompts</span></h2>
+  <div class="cols">
+    <div>
+      <div class="box tight">
+        <span class="lbl i">两个经典场景</span>
+        <p class="note"><b>SUG（搜索联想）</b>：输入中实时补全——独立于结果页的服务，拿已输入前缀去匹配高热 query。<br><b>相关搜索</b>：结果页底部的"进一步探索"入口，看完结果后的第二跳。</p>
+      </div>
+      <div class="box">
+        <span class="lbl m">SUG 的召回与排序</span>
+        <div class="flow" style="--acc:var(--gold)">
+          <div class="fbox">用户前缀</div><div class="far">→</div>
+          <div class="fbox hi">Trie 前缀树<small>历史高频 query 建树<br>前缀检索 Top-10 候选</small></div><div class="far">→</div>
+          <div class="fbox">CTR 预估排序<small>曝光+点击日志训练 LR<br>按预测点击率排序</small></div><div class="far">→</div>
+          <div class="fbox">下拉列表</div>
+        </div>
+        <p class="note">麻雀虽小五脏俱全：SUG 自身就是一个微型"召回+排序"系统——骨架的分形结构。</p>
+      </div>
+    </div>
+    <div>
+      <div class="box">
+        <span class="lbl p">2026 现状：产品形态换壳，目标函数没变</span>
+        <p class="note">经典联想仍在（行业统计约贡献 12–15% 点击，二手数据仅供参考），而 AI 搜索把同一逻辑搬进了对话：<b>Google AI Mode 在每次回答末尾生成可点击的 follow-up 追问，Perplexity 的 related questions 同理</b>——从"预测你想搜什么"变成"替你想好下一个问题"。</p>
+        <p class="note"><b>本质连线</b>：目标函数始终是"降低表达门槛 + 延长会话"；变化在于生成方式——从 Trie 树查高频日志，变成 LLM 基于当前答案上下文<em>现场生成</em>候选问题。查询词推荐由此从"日志的回声"升级为"理解的延伸"，也顺手接管了正片 fan-out 讲过的"复杂问题分解"能力的交互入口。</p>
+      </div>
+      <div class="box tight">
+        <span class="lbl i">附录收尾</span>
+        <p class="note">八页体检的总结论：<b>教程里没有一个概念真正死掉</b>——它们或降级为通道（BM25）、或被收编进 LLM（意图识别）、或换壳重生（SUG→追问）、或依旧是黄金标准（人工分档+nDCG）。工业系统的"过时"，从来是角色变化，不是消失。</p>
+      </div>
+    </div>
+  </div>
+  <div class="refline">来源：王树森《搜索引擎技术》第 6 章（相关搜索细节仅有标题）· <a href="https://www.nngroup.com/articles/google-ai-mode/">NN/g：AI Mode 分析</a> · <a href="https://techcrunch.com/2025/03/05/google-searchs-new-ai-mode-lets-users-ask-complex-multi-part-questions/">TechCrunch (2025-03)</a></div>
+</section>
+
+<!-- ============ 参考文献 ① ============ -->
+<section class="slide" id="refs" style="--acc:var(--gold)">
+  <div class="kicker"><b>尾声</b> · 参考文献 1/2 · 论文</div>
+  <h2>原文链接：经典与嵌入时代 + 生成式检索</h2>
+  <div class="cols" style="font-size:14px">
+    <div class="box tight">
+      <h3 style="color:var(--a1)">第一、二幕</h3>
+      <ul class="clean" style="--acc:var(--a1);font-size:14px">
+        <li>Unicorn (VLDB 2013) — <a href="https://www.vldb.org/pvldb/vol6/p1150-curtiss.pdf">vldb.org/pvldb/vol6/p1150-curtiss.pdf</a></li>
+        <li>Facebook EBR (KDD 2020) — <a href="https://arxiv.org/abs/2006.11632">arxiv.org/abs/2006.11632</a></li>
+        <li>Que2Search (KDD 2021) — <a href="https://dl.acm.org/doi/10.1145/3447548.3467127">dl.acm.org/doi/10.1145/3447548.3467127</a></li>
+        <li>DPR (EMNLP 2020) — <a href="https://arxiv.org/abs/2004.04906">arxiv.org/abs/2004.04906</a></li>
+        <li>ColBERT (SIGIR 2020) — <a href="https://arxiv.org/abs/2004.12832">arxiv.org/abs/2004.12832</a></li>
+      </ul>
+    </div>
+    <div class="box tight">
+      <h3 style="color:var(--a3)">生成式检索与 RAG</h3>
+      <ul class="clean" style="--acc:var(--a3);font-size:14px">
+        <li>DSI (NeurIPS 2022) — <a href="https://arxiv.org/abs/2202.06991">arxiv.org/abs/2202.06991</a></li>
+        <li>NCI (NeurIPS 2022) — <a href="https://arxiv.org/abs/2206.02743">arxiv.org/abs/2206.02743</a></li>
+        <li>SEAL (NeurIPS 2022) — <a href="https://arxiv.org/abs/2204.10628">arxiv.org/abs/2204.10628</a></li>
+        <li>DSI-QG — <a href="https://arxiv.org/abs/2206.10128">arxiv.org/abs/2206.10128</a></li>
+        <li>规模化实验 (EMNLP 2023) — <a href="https://arxiv.org/abs/2305.11841">arxiv.org/abs/2305.11841</a></li>
+        <li>DSI++ — <a href="https://arxiv.org/abs/2212.09744">arxiv.org/abs/2212.09744</a></li>
+        <li>TIGER (NeurIPS 2023) — <a href="https://arxiv.org/abs/2305.05065">arxiv.org/abs/2305.05065</a></li>
+        <li>REALM (ICML 2020) — <a href="https://arxiv.org/abs/2002.08909">arxiv.org/abs/2002.08909</a></li>
+        <li>RAG (NeurIPS 2020) — <a href="https://arxiv.org/abs/2005.11401">arxiv.org/abs/2005.11401</a></li>
+        <li>FiD (EACL 2021) — <a href="https://arxiv.org/abs/2007.01282">arxiv.org/abs/2007.01282</a></li>
+        <li>Self-RAG (ICLR 2024) — <a href="https://arxiv.org/abs/2310.11511">arxiv.org/abs/2310.11511</a></li>
+        <li>Agentic RAG Survey (2025) — <a href="https://arxiv.org/abs/2501.09136">arxiv.org/abs/2501.09136</a></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 参考文献 ② ============ -->
+<section class="slide" style="--acc:var(--gold)">
+  <div class="kicker"><b>尾声</b> · 参考文献 2/2 · LLM 应用与行业来源</div>
+  <h2>原文链接：LLM 时代 + 行业动态</h2>
+  <div class="cols" style="font-size:14px">
+    <div class="box tight">
+      <h3 style="color:var(--a3)">理解 · 蒸馏 · 评估</h3>
+      <ul class="clean" style="--acc:var(--a3);font-size:14px">
+        <li>E5-Mistral (ACL 2024) — <a href="https://arxiv.org/abs/2401.00368">arxiv.org/abs/2401.00368</a></li>
+        <li>Gecko (2024) — <a href="https://arxiv.org/abs/2403.20327">arxiv.org/abs/2403.20327</a></li>
+        <li>CLIP (2021) — <a href="https://arxiv.org/abs/2103.00020">arxiv.org/abs/2103.00020</a></li>
+        <li>HyDE (ACL 2023) — <a href="https://arxiv.org/abs/2212.10496">arxiv.org/abs/2212.10496</a></li>
+        <li>Query2Doc (EMNLP 2023) — <a href="https://arxiv.org/abs/2303.07678">arxiv.org/abs/2303.07678</a></li>
+        <li>RankGPT (EMNLP 2023) — <a href="https://arxiv.org/abs/2304.09542">arxiv.org/abs/2304.09542</a></li>
+        <li>RankZephyr (2023) — <a href="https://arxiv.org/abs/2312.02724">arxiv.org/abs/2312.02724</a></li>
+        <li>MarginMSE (2020) — <a href="https://arxiv.org/abs/2010.02666">arxiv.org/abs/2010.02666</a></li>
+        <li>Thomas et al. / Bing (SIGIR 2024) — <a href="https://arxiv.org/abs/2309.10621">arxiv.org/abs/2309.10621</a></li>
+        <li>UMBRELA (2024) — <a href="https://arxiv.org/abs/2406.06519">arxiv.org/abs/2406.06519</a></li>
+        <li>RAGAS (EACL 2024) — <a href="https://arxiv.org/abs/2309.15217">arxiv.org/abs/2309.15217</a></li>
+        <li>MT-Bench / LLM-as-a-Judge (NeurIPS 2023) — <a href="https://arxiv.org/abs/2306.05685">arxiv.org/abs/2306.05685</a></li>
+        <li>LLM 标注不能替代人工 (2024) — <a href="https://arxiv.org/abs/2412.17156">arxiv.org/abs/2412.17156</a></li>
+      </ul>
+    </div>
+    <div class="box tight">
+      <h3 style="color:var(--a4)">行业来源（部分）</h3>
+      <ul class="clean" style="--acc:var(--a4);font-size:14px">
+        <li>Forbes：Facebook AI 搜索（2026-06-15）— <a href="https://www.forbes.com/sites/maryroeloffs/2026/06/15/facebook-launches-search-engine-ai-tool-that-could-make-meta-10-billion-a-year-analyst-says/">forbes.com/…/facebook-launches-search-engine-ai-tool</a></li>
+        <li>Meta 官方新闻稿（2026-06）— <a href="https://about.fb.com/news/2026/06/new-ai-tools-to-help-you-make-things-happen-on-facebook/">about.fb.com/news/2026/06</a></li>
+        <li>Google AI Mode 官方博客（2025-05-20）— <a href="https://blog.google/products-and-platforms/products/search/google-search-ai-mode-update/">blog.google/…/google-search-ai-mode-update</a></li>
+        <li>RankEmbed 反垄断披露 — <a href="https://ppc.land/googles-rankembed-system-forced-to-share-secrets-in-antitrust-remedy/">ppc.land/googles-rankembed-system</a></li>
+        <li>OpenAI Deep Research — <a href="https://openai.com/index/introducing-deep-research/">openai.com/index/introducing-deep-research</a></li>
+        <li>OpenAI ChatGPT Agent — <a href="https://openai.com/index/introducing-chatgpt-agent/">openai.com/index/introducing-chatgpt-agent</a></li>
+        <li>OpenAI Atlas 浏览器 — <a href="https://openai.com/index/introducing-chatgpt-atlas/">openai.com/index/introducing-chatgpt-atlas</a></li>
+        <li>Perplexity 架构解析 — <a href="https://blog.bytebytego.com/p/how-perplexity-built-an-ai-google">bytebytego.com/p/how-perplexity-built-an-ai-google</a></li>
+        <li>Perplexity 官方：AI-First Search API — <a href="https://research.perplexity.ai/articles/architecting-and-evaluating-an-ai-first-search-api">research.perplexity.ai/…/ai-first-search-api</a></li>
+        <li>零点击研究（SparkToro 2026）— <a href="https://sparktoro.com/blog/in-2026-less-than-one-third-of-google-searches-still-send-a-click/">sparktoro.com/blog/…</a></li>
+        <li>王树森《搜索引擎技术》（附录对照基准）— <a href="https://github.com/wangshusen/SearchEngine">github.com/wangshusen/SearchEngine</a></li>
+        <li>Google Search Quality Rater Guidelines（2025-09-11 版）— <a href="https://guidelines.raterhub.com/searchqualityevaluatorguidelines.pdf">guidelines.raterhub.com</a></li>
+        <li>QP-OneModel（小红书 2026）— <a href="https://arxiv.org/abs/2602.09901">arxiv.org/abs/2602.09901</a> · REIC（Amazon 2025）— <a href="https://arxiv.org/abs/2506.00210">arxiv.org/abs/2506.00210</a></li>
+        <li>TaoSR1（淘宝 2025）— <a href="https://arxiv.org/abs/2508.12365">arxiv.org/abs/2508.12365</a> · Airbnb LTR（2025）— <a href="https://arxiv.org/abs/2505.09795">arxiv.org/abs/2505.09795</a></li>
+      </ul>
+      <p class="note" style="margin-top:10px">注：行业数字（覆盖率、ARR、月活等）多为第三方测算，信源间存在口径差异，正文已用"约/据报道"标注。</p>
+    </div>
+  </div>
+  <p class="center" style="margin-top:18px;color:var(--dim);font-size:14px">— 完 · 一条查询的旅程 · 2026.07 —</p>
+</section>
+
+<!-- SLIDES_MARKER -->
+
+</div>
+<div id="hud">
+  <span id="pageno">1 / ?</span>
+  <span id="actname"></span>
+  <div id="navbtns">
+    <button class="toc" id="btntoc">目录</button>
+    <button id="btnprev">‹</button>
+    <button id="btnnext">›</button>
+  </div>
+</div>
+<script>
+const slides=[...document.querySelectorAll('.slide')];
+let cur=0;
+function actOf(el){
+  const k=el.querySelector('.kicker b');
+  return k?k.textContent:'';
+}
+function go(i){
+  if(i<0||i>=slides.length)return;
+  slides[cur].classList.remove('active');
+  cur=i;
+  slides[cur].classList.add('active');
+  slides[cur].scrollTop=0;
+  document.getElementById('pageno').textContent=(cur+1)+' / '+slides.length;
+  document.getElementById('actname').textContent=actOf(slides[cur]);
+  document.getElementById('progress').style.width=((cur+1)/slides.length*100)+'%';
+  history.replaceState(null,'','#'+(cur+1));
+}
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){e.preventDefault();go(cur+1)}
+  else if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();go(cur-1)}
+  else if(e.key==='Home'){go(0)} else if(e.key==='End'){go(slides.length-1)}
+});
+document.getElementById('btnprev').onclick=()=>go(cur-1);
+document.getElementById('btnnext').onclick=()=>go(cur+1);
+document.getElementById('btntoc').onclick=()=>{const t=slides.findIndex(s=>s.id==='toc');go(t)};
+document.querySelectorAll('[data-goto]').forEach(el=>{
+  el.addEventListener('click',()=>{
+    const t=slides.findIndex(s=>s.id===el.dataset.goto);
+    if(t>=0)go(t);
+  });
+});
+window.addEventListener('load',()=>{
+  if(window.renderMathInElement){
+    renderMathInElement(document.body,{delimiters:[
+      {left:'$$',right:'$$',display:true},
+      {left:'\\(',right:'\\)',display:false}
+    ],throwOnError:false});
+  }
+  const h=parseInt(location.hash.slice(1));
+  go(isNaN(h)?0:Math.min(Math.max(h-1,0),slides.length-1));
+});
+</script>
+</body>
+</html>
