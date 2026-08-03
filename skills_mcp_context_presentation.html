@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude 开发者文档精要：Skills · MCP · 上下文管理</title>
+<style>
+  :root{
+    --bg:#0f1115;
+    --panel:#161a22;
+    --panel2:#1c2130;
+    --accent:#e07a3f;
+    --accent2:#5b9bd5;
+    --text:#eef1f6;
+    --sub:#9aa4b8;
+    --border:#2a3040;
+    --good:#5cb98a;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--text);
+    font-family:"PingFang SC","Microsoft YaHei","Hiragino Sans GB",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    overflow:hidden;}
+  #deck{position:relative;width:100vw;height:100vh;}
+  .slide{
+    position:absolute;inset:0;
+    display:none;
+    padding:64px 88px;
+    flex-direction:column;
+    justify-content:flex-start;
+  }
+  .slide.active{display:flex;}
+  .kicker{
+    color:var(--accent);
+    font-size:15px;
+    letter-spacing:2px;
+    text-transform:uppercase;
+    font-weight:600;
+    margin-bottom:10px;
+  }
+  h1{font-size:44px;margin:0 0 8px 0;font-weight:800;letter-spacing:.5px;}
+  h2{font-size:34px;margin:0 0 4px 0;font-weight:800;}
+  .subtitle{color:var(--sub);font-size:18px;margin-bottom:0;}
+  .divider{
+    color:var(--sub);height:1px;background:var(--border);margin:22px 0 28px 0;
+  }
+  .content{flex:1;overflow:auto;padding-right:4px;}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:28px;}
+  .cols3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:22px;}
+  .card{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:22px 24px;
+  }
+  .card h3{margin:0 0 10px 0;font-size:19px;color:var(--accent2);font-weight:700;}
+  .card p{margin:6px 0;font-size:15.5px;line-height:1.6;color:var(--text);}
+  .card ul{margin:8px 0 0 0;padding-left:20px;}
+  .card li{font-size:15px;line-height:1.65;margin-bottom:6px;color:var(--text);}
+  .tag{
+    display:inline-block;background:var(--panel2);color:var(--accent2);
+    border:1px solid var(--border);border-radius:20px;padding:3px 12px;
+    font-size:12.5px;margin:2px 4px 2px 0;font-weight:600;
+  }
+  .num{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:30px;height:30px;border-radius:50%;background:var(--accent);
+    color:#fff;font-weight:800;font-size:15px;margin-right:10px;flex-shrink:0;
+  }
+  .step{display:flex;align-items:flex-start;margin-bottom:14px;}
+  .step-text{font-size:15.5px;line-height:1.6;}
+  .step-text b{color:var(--accent2);}
+  .big-list{list-style:none;margin:0;padding:0;}
+  .big-list li{
+    display:flex;align-items:flex-start;margin-bottom:16px;font-size:17px;line-height:1.6;
+  }
+  .big-list li::before{content:"▸";color:var(--accent);margin-right:12px;font-size:18px;flex-shrink:0;}
+  .section-title{font-size:64px;font-weight:800;margin:0;}
+  .section-sub{color:var(--sub);font-size:20px;margin-top:14px;}
+  .section-index{font-size:120px;font-weight:900;color:var(--panel2);position:absolute;top:60px;right:90px;}
+  .center{align-items:center;justify-content:center;text-align:left;}
+  .badge-row{margin-top:18px;}
+  table.limits{width:100%;border-collapse:collapse;font-size:14.5px;}
+  table.limits th,table.limits td{border:1px solid var(--border);padding:8px 12px;text-align:left;}
+  table.limits th{background:var(--panel2);color:var(--accent2);}
+  .footer-bar{
+    position:absolute;bottom:0;left:0;right:0;height:56px;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 40px;font-size:13px;color:var(--sub);
+    border-top:1px solid var(--border);background:var(--bg);
+  }
+  .progress{
+    position:absolute;bottom:0;left:0;height:3px;background:var(--accent);
+    transition:width .3s ease;
+  }
+  .nav-btn{
+    position:fixed;top:50%;transform:translateY(-50%);
+    background:rgba(255,255,255,0.05);border:1px solid var(--border);
+    color:var(--text);width:44px;height:44px;border-radius:50%;
+    cursor:pointer;font-size:20px;display:flex;align-items:center;justify-content:center;
+    z-index:10;transition:background .2s;
+  }
+  .nav-btn:hover{background:rgba(255,255,255,0.15);}
+  #prevBtn{left:20px;}
+  #nextBtn{right:20px;}
+  .dots{position:fixed;top:20px;right:30px;font-size:13px;color:var(--sub);z-index:10;}
+  .highlight{color:var(--accent);font-weight:700;}
+  .mono{font-family:"SF Mono",Menlo,Consolas,monospace;background:var(--panel2);
+    padding:2px 7px;border-radius:6px;font-size:13.5px;color:var(--good);}
+  .quote{
+    border-left:4px solid var(--accent);padding:6px 18px;color:var(--sub);
+    font-size:15px;margin-top:14px;line-height:1.6;
+  }
+</style>
+</head>
+<body>
+<div id="deck"></div>
+<div class="nav-btn" id="prevBtn">‹</div>
+<div class="nav-btn" id="nextBtn">›</div>
+<div class="dots" id="pageNum"></div>
+<div class="progress" id="progressBar"></div>
+
+<script>
+const slides = [];
+
+// ---------- Slide 0: Title ----------
+slides.push(`
+<div class="kicker">CLAUDE 开发者文档精要</div>
+<h1>Skills、MCP 与上下文管理</h1>
+<p class="subtitle">19 篇官方文档速览 · Agent Skills / 远程 MCP / 上下文工程 / 多模态与文件处理</p>
+<div class="divider"></div>
+<div class="cols3" style="margin-top:20px;">
+  <div class="card"><h3>🧩 Agent Skills</h3><p>让 Claude 具备可复用、可组合的专项能力包</p></div>
+  <div class="card"><h3>🔌 MCP</h3><p>连接远程工具与私有网络服务的标准协议</p></div>
+  <div class="card"><h3>🧠 上下文工程</h3><p>压缩、编辑、缓存与诊断，管理长对话与长任务</p></div>
+</div>
+<div class="footer-bar" style="position:absolute;bottom:24px;left:88px;right:88px;">
+  <span>基于 platform.claude.com/docs 官方文档整理</span>
+  <span>2026</span>
+</div>
+`);
+
+// ---------- Slide 1: Agenda ----------
+slides.push(`
+<div class="kicker">大纲</div>
+<h2>本次内容共五个部分</h2>
+<div class="divider"></div>
+<ul class="big-list">
+  <li><b>第一部分：Agent Skills</b> —— 概览、快速入门、最佳实践、API 集成指南</li>
+  <li><b>第二部分：MCP（模型上下文协议）</b> —— 远程 MCP 服务器、MCP Connector、MCP 隧道</li>
+  <li><b>第三部分：上下文管理</b> —— 上下文窗口、自动压缩、上下文编辑、提示缓存</li>
+  <li><b>第四部分：高级能力</b> —— 对话中系统消息、编排模式实战、缓存诊断</li>
+  <li><b>第五部分：文件与多模态</b> —— Token 计数、Files API、PDF 支持、视觉能力与坐标定位</li>
+</ul>
+`);
+
+// ---------- Section Divider helper ----------
+function section(idx,title,sub){
+  return `
+  <div class="center" style="flex:1;">
+    <div class="section-index">0${idx}</div>
+    <div class="section-title">${title}</div>
+    <div class="section-sub">${sub}</div>
+  </div>`;
+}
+
+// PART 1: Skills ---------------------------------------------------
+slides.push(section(1,"Agent Skills","让 Claude 具备可复用、按需加载的专项能力"));
+
+slides.push(`
+<div class="kicker">第一部分 · 01</div>
+<h2>Agent Skills 概览</h2>
+<p class="subtitle">模块化、基于文件系统的能力包，无需每次对话重复说明</p>
+<div class="divider"></div>
+<div class="cols">
+  <div class="card">
+    <h3>渐进式加载（Progressive Disclosure）三层结构</h3>
+    <div class="step"><span class="num">1</span><span class="step-text"><b>元数据层</b>：启动时始终加载 <span class="mono">name</span> + <span class="mono">description</span>（约100 token/skill），Claude 据此判断是否触发该技能</span></div>
+    <div class="step"><span class="num">2</span><span class="step-text"><b>指令层</b>：触发后加载 SKILL.md 正文（建议 &lt;5000 token），包含具体工作流程</span></div>
+    <div class="step"><span class="num">3</span><span class="step-text"><b>资源/代码层</b>：按需加载的参考文档与脚本，脚本通过 bash 执行，只有输出进入上下文</span></div>
+  </div>
+  <div class="card">
+    <h3>命名与适用范围</h3>
+    <ul>
+      <li><span class="mono">name</span>：≤64字符，小写字母/数字/短横线，不可含 "anthropic"/"claude"</li>
+      <li><span class="mono">description</span>：≤1024字符，需说明"做什么+何时用"</li>
+      <li>官方预置技能：<span class="tag">pptx</span><span class="tag">xlsx</span><span class="tag">docx</span><span class="tag">pdf</span></li>
+      <li>三大平台各有差异：Claude API（需代码执行工具）、Claude Code（本地技能）、claude.ai（预置技能默认开启）</li>
+      <li>⚠️ 技能不会跨平台同步；仅使用可信来源的技能，避免恶意技能泄露数据或滥用工具</li>
+    </ul>
+  </div>
+</div>
+`);
+
+slides.push(`
+<div class="kicker">第一部分 · 02</div>
+<h2>Skills 快速入门（API 调用）</h2>
+<p class="subtitle">10 分钟内跑通官方预置技能：pptx / xlsx / docx / pdf</p>
+<div class="divider"></div>
+<div class="cols">
+  <div class="card">
+    <h3>四个步骤</h3>
+    <div class="step"><span class="num">1</span><span class="step-text">准备 API Key 或已登录的 <span class="mono">ant</span> CLI</span></div>
+    <div class="step"><span class="num">2</span><span class="step-text">列出可用技能：<span class="mono">ant beta:skills list --source anthropic</span></span></div>
+    <div class="step"><span class="num">3</span><span class="step-text">发起调用：声明支持代码执行的模型 + beta 头 <span class="mono">skills-2025-10-02</span> + <span class="mono">container.skills</span> 数组 + <span class="mono">code_execution</span> 工具</span></div>
+    <div class="step"><span class="num">4</span><span class="step-text">下载产物：从 <span class="mono">bash_code_execution_tool_result</span> 中取出 <span class="mono">file_id</span>，调用 Files API 下载</span></div>
+  </div>
+  <div class="card">
+    <h3>要点</h3>
+    <ul>
+      <li>技能启动时只加载元数据，真正相关时才完整加载（渐进式加载）</li>
+      <li>因技能运行在执行容器内，<b>代码执行工具是必需项</b></li>
+      <li>切换 <span class="mono">skill_id</span> 即可复用同一套流程生成 xlsx / docx / pdf</li>
+    </ul>
+    <div class="quote">示例：用 <span class="mono">skill_id: "pptx"</span> 一次调用生成 5 页幻灯片</div>
+  </div>
+</div>
+`);
+
+slides.push(`
+<div class="kicker">第一部分 · 03</div>
+<h2>Skills 最佳实践</h2>
+<p class="subtitle">如何写出高质量、易被正确触发的技能</p>
+<div class="divider"></div>
+<div class="cols3">
+  <div class="card">
+    <h3>简洁与自由度</h3>
+    <ul>
+      <li>SKILL.md 与对话历史共享上下文预算，正文建议 &lt;500 行</li>
+      <li>假设 Claude 已具备基础知识，只写必要信息</li>
+      <li>任务越"脆弱/高风险"，指令越应具体（精确脚本）；任务越灵活，可用自由文本</li>
+      <li>在 Haiku / Sonnet / Opus 上都测试一遍</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>命名 / 描述 / 结构</h3>
+    <ul>
+      <li><span class="mono">name</span> 用动名词形式（如 <span class="mono">processing-pdfs</span>），避免笼统词（utils、helper）</li>
+      <li><span class="mono">description</span> 用第三人称，含触发关键词——上百个技能中要靠它被选中</li>
+      <li>SKILL.md 作为导航中枢，链接到按需加载的参考文件；引用链不超过一层</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>内容与评测</h3>
+    <ul>
+      <li>避免时效性表述（写"当前方法"而非具体弃用日期）</li>
+      <li>用具体示例而非抽象描述；MCP 工具用完整限定名 <span class="mono">ServerName:tool_name</span></li>
+      <li>先写 ≥3 个测试用例，建立"无技能"基线，再用双 Claude 循环迭代打磨</li>
+    </ul>
+  </div>
+</div>
+`);
+
+slides.push(`
+<div class="kicker">第一部分 · 04</div>
+<h2>Skills 技术指南（Skills Guide）</h2>
+<p class="subtitle">API 层面的完整集成方式：官方技能 + 自定义技能</p>
+<div class="divider"></div>
+<div class="cols">
+  <div class="card">
+    <h3>请求结构</h3>
+    <ul>
+      <li>需三个 beta 头：<span class="mono">code-execution-2025-08-25</span>、<span class="mono">skills-2025-10-02</span>、<span class="mono">files-api-2025-04-14</span></li>
+      <li><span class="mono">container.skills</span> 指定加载哪些技能，<span class="mono">code_execution</span> 工具必须声明</li>
+      <li>生成文件通过 <span class="mono">file_id</span> + Files API 下载</li>
+      <li>容器可通过 <span class="mono">container.id</span> 在多轮对话中复用</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>限制与建议</h3>
+    <table class="limits">
+      <tr><th>项目</th><th>限制</th></tr>
+      <tr><td>单请求最大技能数</td><td>8 个</td></tr>
+      <tr><td>技能上传大小上限</td><td>30 MB</td></tr>
+      <tr><td>网络/包安装</td><td>执行环境不可联网、不可运行时装包</td></tr>
+      <tr><td>数据保留</td><td>不受 ZDR（零数据留存）覆盖</td></tr>
+    </table>
+    <p>生产环境建议锁定版本号，开发环境可用 <span class="mono">latest</span>；变更技能列表会破坏提示缓存</p>
+  </div>
+</div>
+`);
+
+// PART 2: MCP -------------------------------------------------------
+slides.push(section(2,"MCP","连接远程工具与私有网络服务的标准协议"));
+
+slides.push(`
+<div class="kicker">第二部分 · 05</div>
+<h2>远程 MCP 服务器</h2>
+<p class="subtitle">第三方托管的服务，通过网络向 Claude 暴露工具能力</p>
+<div class="divider"></div>
+<div class="cols">
+  <div class="card">
+    <h3>核心概念</h3>
+    <p><b>MCP（模型上下文协议）</b>是连接 AI 模型与外部工具/服务的标准协议。"远程"是相对于本地 STDIO 服务器而言——通过 HTTP 访问，由第三方独立运营，而非 Anthropic 运营。</p>
+    <p>连接后，远程服务器的工具与其他 Claude 工具的触发方式完全一致。</p>
+  </div>
+  <div class="card">
+    <h3>接入步骤 & 注意事项</h3>
+    <div class="step"><span class="num">1</span><span class="step-text">查阅目标服务器文档</span></div>
+    <div class="step"><span class="num">2</span><span class="step-text">获取所需的认证凭据</span></div>
+    <div class="step"><span class="num">3</span><span class="step-text">按服务器要求完成配置</span></div>
+    <div class="step"><span class="num">4</span><span class="step-text">通过 MCP Connector API 建立连接</span></div>
+    <p class="quote">⚠️ 这些服务器不由 Anthropic 拥有、运营或认可——只连接你信任、且已审查过安全实践和服务条款的服务器</p>
+  </div>
+</div>
+`);
+
+slides.push(`
+<div class="kicker">第二部分 · 06</div>
+<h2>MCP Connector</h2>
+<p class="subtitle">Messages API 直接对话远程 MCP 服务器，无需单独的 MCP 客户端应用</p>
+<div class="divider"></div>
+<div class="cols">
+  <div class="card">
+    <h3>请求结构</h3>
+    <ul>
+      <li><span class="mono">mcp_servers</span> 数组：<span class="mono">type:"url"</span>（唯一支持类型）、<span class="mono">url</span>、<span class="mono">name</span>、可选 <span class="mono">authorization_token</span></li>
+      <li><span class="mono">tools</span> 数组中的 <span class="mono">mcp_toolset</span> 对象控制启用哪些工具，支持白名单/黑名单</li>
+      <li>响应中包含 <span class="mono">mcp_tool_use</span> 与 <span class="mono">mcp_tool_result</span> 块</li>
+      <li>需 beta 头 <span class="mono">mcp-client-2025-11-20</span></li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>关键限制</h3>
+    <ul>
+      <li>仅支持 <b>工具调用</b>，不支持 MCP 规范中的资源（resources）与提示词（prompts）</li>
+      <li>仅支持公开 HTTP 服务器，不支持本地 STDIO 服务器</li>
+      <li>可用于 Claude API 及 AWS / Microsoft Foundry 上的 Anthropic 托管平台；<b>不支持 Amazon Bedrock 与 Google Cloud</b></li>
+      <li>不受 ZDR 覆盖；兼容 Message Batches API</li>
+    </ul>
+  </div>
+</div>
+`);
+
+slides.push(`
+<div class="kicker">第二部分 · 07</div>
+<h2>MCP 隧道（Tunnels）· 研究预览</h2>
+<p class="subtitle">让 Claude 安全访问私有网络内的 MCP 服务器，无需开放入站端口</p>
+<div class="divider"></div>
+<div class="cols">
+  <div class="card">
+    <h3>工作原理</h3>
+    <p>客户网络内运行两个组件：</p>
+    <ul>
+      <li><b>cloudflared</b>：仅发起出站连接，接入 Cloudflare 隧道边缘节点</li>
+      <li><b>代理（proxy）</b>：用客户自有证书终止内层 TLS，校验来源 IP，按主机名路由到目标 MCP 服务器</li>
+    </ul>
+    <p>流量路径：Claude → 外层 mTLS → 隧道边缘 → cloudflared → 代理终止内层 TLS → 上游 MCP 服务器</p>
+  </div>
+  <div class="card">
+    <h3>安全模型 & 使用要求</h3>
+    <ul>
+      <li>三层独立安全机制：外层 mTLS/IP 校验、内层 TLS、MCP 服务器自身的 OAuth</li>
+      <li>Cloudflare 只能看到出口 IP 与连接时序，<b>无法读取负载内容</b></li>
+      <li>需要 Kubernetes 集群或 Docker 环境；推荐工作负载身份联合认证</li>
+      <li>研究预览阶段，无正式 SLA/支持承诺</li>
+    </ul>
+  </div>
+</div>
+`);
+
+// PART 3: Context management ---------------------------------------
+slides.push(section(3,"上下文管理","压缩、编辑、缓存与诊断，驾驭长对话与长任务"));
+
+slides.push(`
+<div class="kicker">第三部分 · 08</div>
+<h2>上下文窗口（Context Windows）</h2>
+<p class="subtitle">模型可引用的全部文本：系统提示 + 消息历史 + 工具定义 + 输出本身</p>
+<div class="divider"></div>
+<div class="cols">
+  <div class="card">
+    <h3>窗口大小</h3>
+    <ul>
+      <li>Opus 5/4.8/4.7/4.6、Sonnet 5/4.6、Fable/Mythos 5：默认 <b>100万</b> token 窗口，最大输出 128K，无需 beta 头</li>
+      <li>Sonnet 4.5 等其他模型：<b>20万</b> token 窗口</li>
+      <li>单请求最多 600 张图片/PDF（20万上下文模型为100张）</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>关键机制与风险</h3>
+    <ul>
+      <li>每轮都会累积此前全部历史；用量通过 <span class="mono">input_tokens</span>/<span class="mono">cache_read_input_tokens</span> 等字段上报</li>
+      <li>Token 越堆积，准确性可能下降——即"<b>上下文腐化</b>（context rot）"</li>
+      <li>输入超出窗口 → 400 错误；4.5+模型下输入+最大输出超限则以 <span class="mono">model_context_window_exceeded</span> 结束</li>
+      <li>应对策略：服务端压缩、上下文编辑、提示缓存、Token 计数 API</li>
+    </ul>
+  </div>
+</div>
+`);
+
+slides.push(`
+<div class="kicker">第三部分 · 09</div>
+<h2>自动压缩（Compaction）</h2>
+<p class="subtitle">服务端自动摘要旧对话内容，让对话在超长场景下继续进行</p>
+<div class="divider"></div>
+<div class="cols">
+  <div class="card">
+    <h3>工作方式</h3>
+    <ul>
+      <li>API 持续监控输入 token，超过可配置阈值（最低5万）时触发</li>
+      <li>Claude 生成摘要，包裹进"压缩块"返回；下一请求会自动丢弃压缩块之前的全部内容</li>
+      <li>需 beta 头 <span class="mono">compact-2026-01-12</span> + <span class="mono">context_management</span> 配置</li>
+      <li>可配置：<span class="mono">trigger</span>（阈值）、<span class="mono">pause_after_compaction</span>（压缩后暂停）、<span class="mono">instructions</span>（自定义摘要提示）</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>计费与限制</h3>
+    <ul>
+      <li>返回的 <span class="mono">iterations</span> 数组区分压缩与消息 token；压缩本身会带来额外开销</li>
+      <li>无法用更便宜的模型做摘要步骤</li>
+      <li>模型有时会调用工具而非摘要——可用"仅输出文本"明确指令缓解</li>
+      <li>支持模型：Fable 5、Mythos 5/Preview、Opus 5/4.8/4.7/4.6、Sonnet 5/4.6</li>
+    </ul>
+  </div>
+</div>
+`);
+
+slides.push(`
+<div class="kicker">第三部分 · 10</div>
+<h2>上下文编辑（Context Editing）</h2>
+<p class="subtitle">运行时精细清除特定内容（而非摘要），服务端执行，本地历史不受影响</p>
+<div class="divider"></div>
+<div class="cols">
+  <div class="card">
+    <h3>两种策略</h3>
+    <p><b>工具结果清理</b>（<span class="mono">clear_tool_uses_20250919</span>）：达到输入 token 阈值（默认10万）后按顺序清除最旧的工具结果，默认保留最近 3 次工具调用</p>
+    <p><b>思考块清理</b>（<span class="mono">clear_thinking_20251015</span>）：管理扩展思考块，不同模型默认行为不同</p>
+  </div>
+  <div class="card">
+    <h3>要点</h3>
+    <ul>
+      <li>两者可组合，但思考块清理必须排在 edits 数组首位</li>
+      <li>需 beta 头 <span class="mono">context-management-2025-06-27</span>，所有 Claude 模型均支持</li>
+      <li>可与"记忆工具"配合，让 Claude 在内容被清除前先保存要点</li>
+      <li>局限：不适合需要精确回忆早期对话内容的任务</li>
+    </ul>
+  </div>
+</div>
+`);
+
+slides.push(`
+<div class="kicker">第三部分 · 11</div>
+<h2>提示缓存（Prompt Caching）</h2>
+<p class="subtitle">复用已处理过的前缀内容，降低延迟与成本</p>
+<div class="divider"></div>
+<div class="cols">
+  <div class="card">
+    <h3>机制</h3>
+    <ul>
+      <li><span class="mono">cache_control: {"type":"ephemeral"}</span> 标记"缓存断点"</li>
+      <li>两种模式：自动（单一顶层字段，断点随对话自动前移）/ 显式（最多 4 个断点，20 块回溯窗口）</li>
+      <li>默认 TTL 5 分钟；1 小时延长 TTL 需 2 倍写入价</li>
+      <li>最小可缓存长度按模型不同，为 512～4096 token</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>定价倍数（相对基础输入价）</h3>
+    <table class="limits">
+      <tr><th>操作</th><th>倍数</th></tr>
+      <tr><td>5 分钟缓存写入</td><td>1.25×</td></tr>
+      <tr><td>1 小时缓存写入</td><td>2.0×</td></tr>
+      <tr><td>缓存命中读取</td><td>0.1×</td></tr>
+      <tr><td>输出 token</td><td>不变</td></tr>
+    </table>
+    <p>最佳实践：把断点放在"最后一个跨请求不变的内容块"上，而非频繁变化的内容前</p>
+  </div>
+</div>
+`);
+
+// PART 4: Advanced --------------------------------------------------
+slides.push(section(4,"高级能力","对话中动态调整系统消息、工具与推理力度"));
+
+slides.push(`
+<div class="kicker">第四部分 · 12</div>
+<h2>对话中系统消息（Mid-Conversation System Messages）</h2>
+<p class="subtitle">在对话中途追加 system 角色消息，而不必改写顶层 system 字段——保留已有缓存前缀</p>
+<div class="divider"></div>
+<div class="cols">
+  <div class="card">
+    <h3>两个能力</h3>
+    <ul>
+      <li><b>对话中系统消息</b>（已 GA）：追加 <span class="mono">{"role":"system"}</span> 消息，无需 beta 头，支持 Fable 5 / Mythos 5 / Opus 4.8 / Opus 5（<b>不含 Sonnet 5</b>）</li>
+      <li><b>对话中工具变更</b>（beta）：<span class="mono">tool_addition</span>/<span class="mono">tool_removal</span> 内容块，含 MCP 工具引用，需 beta 头 <span class="mono">mid-conversation-tool-changes-2026-07-01</span></li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>规则与用途</h3>
+    <ul>
+      <li>后发的系统消息优先级高于此前的，且拥有"操作者级"信任——不要放未经信任的原始工具输出或网页内容</li>
+      <li>只能出现在用户轮之后，且必须是最后一条或紧跟其后是 assistant 轮</li>
+      <li>典型用途：中途切换角色/策略、注入实时上下文（截止时间、授权信息）、临时提升权限</li>
+    </ul>
+  </div>
+</div>
+`);
+
+slides.push(`
+<div class="kicker">第四部分 · 13</div>
+<h2>编排模式实战示例</h2>
+<p class="subtitle">用文档化的 API 原语搭建"自主并行编排"能力，无隐藏特性</p>
+<div class="divider"></div>
+<div class="cols">
+  <div class="card">
+    <h3>三类系统消息</h3>
+    <ul>
+      <li><span class="mono">MODE_ENTER</span>：激活时发送一次完整说明</li>
+      <li><span class="mono">MODE_REFRESH</span>：每 10 轮左右的简短提醒</li>
+      <li><span class="mono">MODE_EXIT</span>：关闭时发送一次</li>
+      <li>系统消息追加在用户轮之后，以保留缓存前缀</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>关键设计</h3>
+    <ul>
+      <li>每个子任务作为独立子代理运行（含 bash + 结果上报工具），继承主循环的推理力度</li>
+      <li>推荐质量模式：对抗式验证（二次浪潮反驳一次浪潮结果）、"完整性评审员"、多阶段编排</li>
+      <li>限制示例：<span class="mono">MAX_CONCURRENT=10</span>、<span class="mono">MAX_TOTAL_SUBTASKS=200</span></li>
+      <li>⚠️ 并行扇出会显著放大 Token 消耗，仅用于收益足够大的任务</li>
+    </ul>
+  </div>
+</div>
+`);
+
+slides.push(`
+<div class="kicker">第四部分 · 14</div>
+<h2>缓存诊断（Cache Diagnostics）· Beta</h2>
+<p class="subtitle">对比两次连续请求，定位缓存未命中的具体原因</p>
+<div class="divider"></div>
+<div class="cols">
+  <div class="card">
+    <h3>使用方式</h3>
+    <ul>
+      <li>需 beta 头 <span class="mono">cache-diagnosis-2026-04-07</span></li>
+      <li>首轮传 <span class="mono">previous_message_id: null</span>，之后传上一次响应的 <span class="mono">id</span></li>
+      <li>响应中附带 <span class="mono">diagnostics</span> 对象</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>未命中原因类型</h3>
+    <ul>
+      <li><span class="mono">model_changed</span> / <span class="mono">system_changed</span>（如插入了时间戳）</li>
+      <li><span class="mono">tools_changed</span>（工具顺序或结构变化）</li>
+      <li><span class="mono">messages_changed</span>（历史被编辑而非追加）</li>
+      <li>指纹只含哈希/估算值，不含原始内容，符合 ZDR；仅限 Claude API</li>
+    </ul>
+  </div>
+</div>
+`);
+
+// PART 5: Files & multimodal -----------------------------------------
+slides.push(section(5,"文件与多模态","Token 计数、文件管理、PDF 与视觉理解"));
+
+slides.push(`
+<div class="kicker">第五部分 · 15</div>
+<h2>Token 计数 API</h2>
+<p class="subtitle">发送前预估请求的输入 Token 数量，用于成本与速率管理</p>
+<div class="divider"></div>
+<div class="cols">
+  <div class="card">
+    <h3>核心特性</h3>
+    <ul>
+      <li><span class="mono">count_tokens</span> 端点接受与 <span class="mono">messages.create</span> 相同的结构化输入，返回 <span class="mono">{"input_tokens": N}</span></li>
+      <li>结果为估算值，实际计费可能略有差异；免费使用</li>
+      <li>上一轮的"思考"块不计入且免费；当前轮思考块计入输入 token</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>注意事项</h3>
+    <ul>
+      <li>Claude 4.7+ 及 "Mythos Preview" 使用新分词器，相同文本 token 数比旧模型多约 <b>30%</b> —— 换模型需重新计数</li>
+      <li>速率限制与消息创建分开计算（各档 2000/4000/8000 RPM）</li>
+      <li>受适用的零数据留存（ZDR）政策约束</li>
+    </ul>
+  </div>
+</div>
+`);
+
+slides.push(`
+<div class="kicker">第五部分 · 16</div>
+<h2>Files API</h2>
+<p class="subtitle">"一次创建，多次使用"——上传一次获取 file_id，之后重复引用</p>
+<div class="divider"></div>
+<div class="cols">
+  <div class="card">
+    <h3>用法</h3>
+    <ul>
+      <li>通过 <span class="mono">files.upload(...)</span> 上传，获得 <span class="mono">id</span>、文件名、MIME 类型、大小等元数据</li>
+      <li>可在 <span class="mono">document</span>（PDF/文本）、<span class="mono">image</span>（图片）、<span class="mono">container_upload</span>（代码执行）块中引用</li>
+      <li>需 beta 头 <span class="mono">files-api-2025-04-14</span></li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>限制</h3>
+    <table class="limits">
+      <tr><th>项目</th><th>限制</th></tr>
+      <tr><td>单文件大小</td><td>500 MB</td></tr>
+      <tr><td>组织总存储</td><td>500 GB</td></tr>
+      <tr><td>可下载文件</td><td>仅技能/代码执行生成的文件</td></tr>
+      <tr><td>平台支持</td><td>不支持 Bedrock / Google Cloud</td></tr>
+    </table>
+    <p>文件不可修改/重命名，只能重新上传；删除不可逆</p>
+  </div>
+</div>
+`);
+
+slides.push(`
+<div class="kicker">第五部分 · 17</div>
+<h2>PDF 支持</h2>
+<p class="subtitle">按页转换为图像+文本，兼顾内容理解与视觉元素识别</p>
+<div class="divider"></div>
+<div class="cols">
+  <div class="card">
+    <h3>用法与限制</h3>
+    <ul>
+      <li>通过 <span class="mono">document</span> 内容块传入（url / base64 / file 三种来源），建议放在文本提示之前</li>
+      <li>单请求最大 32MB；最多 600 页（若上下文窗口小于100万则为100页）</li>
+      <li>必须是标准的、无加密无密码的 PDF</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>成本与特殊说明</h3>
+    <ul>
+      <li>每页约 1500～3000 token 文本成本，加上等同视觉定价的图像成本</li>
+      <li>⚠️ Amazon Bedrock Converse API 上，视觉分析（图表/图片）需开启 <b>引用（citations）</b>功能，否则仅做基础文本提取</li>
+      <li>不支持 .xlsx/.docx 等格式，需先转为 PDF 或纯文本</li>
+    </ul>
+  </div>
+</div>
+`);
+
+slides.push(`
+<div class="kicker">第五部分 · 18</div>
+<h2>视觉能力（Vision）</h2>
+<p class="subtitle">多模态图像理解——最佳实践是图片放在文本之前</p>
+<div class="divider"></div>
+<div class="cols">
+  <div class="card">
+    <h3>技术细节</h3>
+    <ul>
+      <li>图像按 28×28 像素块处理，token 成本 = ⌈宽/28⌉ × ⌈高/28⌉</li>
+      <li>标准档：长边≤1568px / 1568 视觉token；高分辨率档（4.7+模型）：长边≤2576px / 4784 token</li>
+      <li>三种传图方式：base64 内嵌、托管 URL、Files API（推荐用于多轮复用）</li>
+      <li>支持 JPEG/PNG/GIF/WebP（动图仅取第一帧）</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>能力边界</h3>
+    <ul>
+      <li>无法识别/指名图中具体人物；模糊、旋转或&lt;200px 的图片易产生幻觉</li>
+      <li>空间推理与物体计数只是近似；无法可靠判断图片是否为 AI 生成</li>
+      <li>不适用于诊断性医学影像</li>
+      <li>建议：多图加编号标签（"图1："），并对模型输出的坐标做人工核验</li>
+    </ul>
+  </div>
+</div>
+`);
+
+slides.push(`
+<div class="kicker">第五部分 · 19</div>
+<h2>视觉坐标与边界框</h2>
+<p class="subtitle">Claude 内部会缩放图像，需要将返回坐标还原到原始尺寸</p>
+<div class="divider"></div>
+<div class="cols">
+  <div class="card">
+    <h3>缩放机制</h3>
+    <ul>
+      <li>取"边长限制"与"视觉token 预算"两者中更严格的一个进行缩放</li>
+      <li>缩放后向右/下方向填充至 28px 的整数倍（填充部分无内容，坐标换算时应排除）</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>两种处理方案</h3>
+    <ul>
+      <li><b>方案一</b>：预先按 Claude 目标尺寸缩放图片后上传，直接用返回的像素坐标，无需后处理</li>
+      <li><b>方案二</b>：后置换算——计算 Claude 实际使用的缩放尺寸，将返回坐标转为 [0,1] 相对值，再乘回原图尺寸</li>
+      <li>PDF 页面由服务端栅格化，尺寸未知——若需精确坐标应自行提前栅格化</li>
+    </ul>
+  </div>
+</div>
+`);
+
+// ---------- Closing ----------
+slides.push(`
+<div class="center" style="flex:1;">
+  <div class="kicker">总结</div>
+  <h1 style="font-size:52px;">五个部分，一条主线</h1>
+  <p class="subtitle" style="font-size:19px;max-width:760px;">
+    Agent Skills 让 Claude 具备可插拔的专项能力；MCP 打通远程工具与私有网络；
+    上下文管理（压缩/编辑/缓存/诊断）让长任务与长对话稳定可控；
+    高级能力（动态系统消息、编排模式）支撑更复杂的自主工作流；
+    文件与多模态能力则让 Claude 能处理真实世界的文档、图像与 PDF。
+  </p>
+  <div class="badge-row">
+    <span class="tag">Agent Skills</span><span class="tag">MCP Connector</span><span class="tag">MCP Tunnels</span>
+    <span class="tag">Compaction</span><span class="tag">Context Editing</span><span class="tag">Prompt Caching</span>
+    <span class="tag">Files API</span><span class="tag">Vision</span><span class="tag">PDF Support</span>
+  </div>
+  <p class="quote" style="margin-top:26px;">资料来源：platform.claude.com/docs（英文官方文档，中文内容为整理归纳）</p>
+</div>
+`);
+
+// ---------- Render logic ----------
+const deck = document.getElementById('deck');
+slides.forEach((html, i)=>{
+  const div = document.createElement('div');
+  div.className = 'slide' + (i===0 ? ' active' : '');
+  div.innerHTML = html;
+  deck.appendChild(div);
+});
+
+let current = 0;
+const total = slides.length;
+const slideEls = document.querySelectorAll('.slide');
+const pageNum = document.getElementById('pageNum');
+const progressBar = document.getElementById('progressBar');
+
+function show(i){
+  current = Math.max(0, Math.min(total-1, i));
+  slideEls.forEach((el, idx)=> el.classList.toggle('active', idx===current));
+  pageNum.textContent = (current+1) + ' / ' + total;
+  progressBar.style.width = ((current+1)/total*100) + '%';
+}
+
+document.getElementById('nextBtn').addEventListener('click', ()=> show(current+1));
+document.getElementById('prevBtn').addEventListener('click', ()=> show(current-1));
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') show(current+1);
+  if(e.key === 'ArrowLeft' || e.key === 'PageUp') show(current-1);
+});
+
+show(0);
+</script>
+</body>
+</html>
