@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Claude 工具使用（Tool Use）完全指南</title>
+<style>
+  :root{
+    --bg:#0f1115;
+    --panel:#161a22;
+    --accent:#d97757;
+    --accent2:#7dd3c0;
+    --text:#eef1f6;
+    --muted:#9aa4b2;
+    --line:#2a2f3a;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:"PingFang SC","Microsoft YaHei","Noto Sans SC",-apple-system,BlinkMacSystemFont,sans-serif;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
+  }
+  .stage{
+    width:100%;
+    height:100%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .slide{
+    display:none;
+    width:1120px;
+    max-width:92vw;
+    height:630px;
+    max-height:86vh;
+    background:linear-gradient(180deg,var(--panel),#12151c);
+    border:1px solid var(--line);
+    border-radius:18px;
+    padding:56px 64px;
+    position:relative;
+    overflow:hidden;
+    box-shadow:0 20px 60px rgba(0,0,0,0.5);
+  }
+  .slide.active{display:flex;flex-direction:column;}
+  .kicker{
+    color:var(--accent);
+    font-size:15px;
+    letter-spacing:2px;
+    font-weight:600;
+    text-transform:uppercase;
+    margin-bottom:10px;
+  }
+  h1{
+    font-size:38px;
+    margin:0 0 6px 0;
+    font-weight:700;
+    line-height:1.25;
+  }
+  h2{
+    font-size:28px;
+    margin:0 0 18px 0;
+    font-weight:700;
+    color:var(--text);
+    border-left:5px solid var(--accent);
+    padding-left:14px;
+  }
+  .subtitle{
+    color:var(--muted);
+    font-size:18px;
+    margin-bottom:0;
+  }
+  .content{flex:1;overflow:hidden;display:flex;flex-direction:column;justify-content:center;gap:14px;}
+  ul{margin:0;padding-left:22px;}
+  li{margin-bottom:10px;font-size:17px;line-height:1.55;}
+  li b{color:var(--accent2);}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:24px;}
+  .card{
+    background:#1b2029;
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:20px 22px;
+  }
+  .card h3{margin:0 0 10px 0;font-size:18px;color:var(--accent2);}
+  .card p, .card li{font-size:15px;color:#d5dae2;}
+  table{width:100%;border-collapse:collapse;font-size:15px;}
+  th,td{border-bottom:1px solid var(--line);text-align:left;padding:9px 10px;}
+  th{color:var(--accent2);font-weight:600;}
+  code{
+    background:#0d0f14;
+    border:1px solid var(--line);
+    padding:2px 7px;
+    border-radius:5px;
+    font-size:14px;
+    color:#ffcb8b;
+  }
+  pre{
+    background:#0d0f14;
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:16px 18px;
+    font-size:13.5px;
+    line-height:1.5;
+    overflow:auto;
+    color:#c7d0dc;
+    max-height:100%;
+  }
+  .steps{display:flex;gap:14px;flex-wrap:wrap;}
+  .step{
+    flex:1;
+    min-width:160px;
+    background:#1b2029;
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:16px;
+    position:relative;
+  }
+  .step .n{
+    display:inline-flex;width:28px;height:28px;border-radius:50%;
+    background:var(--accent);color:#191008;font-weight:700;
+    align-items:center;justify-content:center;font-size:14px;margin-bottom:8px;
+  }
+  .step h4{margin:0 0 6px 0;font-size:15.5px;}
+  .step p{margin:0;font-size:13.5px;color:var(--muted);}
+  .footer{
+    position:absolute;
+    bottom:22px;left:64px;right:64px;
+    display:flex;justify-content:space-between;
+    color:var(--muted);
+    font-size:13px;
+  }
+  .badge{
+    display:inline-block;
+    background:rgba(217,119,87,0.15);
+    color:var(--accent);
+    border:1px solid rgba(217,119,87,0.4);
+    padding:3px 10px;
+    border-radius:20px;
+    font-size:12.5px;
+    margin-right:6px;
+  }
+  .nav{
+    position:fixed;bottom:18px;left:50%;transform:translateX(-50%);
+    display:flex;align-items:center;gap:14px;
+    background:#181c24;border:1px solid var(--line);
+    padding:8px 16px;border-radius:30px;
+    box-shadow:0 8px 24px rgba(0,0,0,0.4);
+  }
+  .nav button{
+    background:var(--accent);
+    border:none;color:#1a1206;font-weight:700;
+    width:34px;height:34px;border-radius:50%;
+    cursor:pointer;font-size:16px;
+  }
+  .nav button:disabled{opacity:0.3;cursor:default;}
+  .nav .count{color:var(--muted);font-size:14px;min-width:50px;text-align:center;}
+  .compare{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  .compare .col{background:#1b2029;border:1px solid var(--line);border-radius:12px;padding:18px 20px;}
+  .compare h3{margin-top:0;color:var(--accent2);font-size:18px;}
+  .compare li{font-size:14.5px;}
+  .taglist span{margin-right:8px;}
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <!-- 1 -->
+  <div class="slide active">
+    <div class="kicker">Claude Docs 系列速览</div>
+    <h1>Claude 工具使用（Tool Use）<br>完全指南</h1>
+    <p class="subtitle">从原理、定义规范、调用循环，到并行调用、网络搜索与文本编辑器工具</p>
+    <div class="content">
+      <div class="grid2" style="margin-top:20px;">
+        <div class="card">
+          <h3>本次内容来源</h3>
+          <ul>
+            <li>Tool Use 总览 / How Tool Use Works</li>
+            <li>Define Tools / Handle Tool Calls</li>
+            <li>Parallel Tool Use</li>
+            <li>Web Search Tool / Text Editor Tool</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>延伸对比</h3>
+          <p>附加对比 OpenAI「对话状态管理」（Conversation State）三种实现方式，帮助理解不同厂商在多轮对话/工具调用上的设计取舍。</p>
+        </div>
+      </div>
+    </div>
+    <div class="footer"><span>platform.claude.com · docs</span><span>2026</span></div>
+  </div>
+
+  <!-- 2 -->
+  <div class="slide">
+    <div class="kicker">01 · 核心概念</div>
+    <h2>什么是工具使用？</h2>
+    <div class="content">
+      <p style="font-size:17px;color:#d5dae2;">工具使用（Tool Use）让 Claude 能调用你定义的函数，或 Anthropic 提供的内置工具。Claude 会根据用户请求与工具描述<b style="color:var(--accent2);">自主判断</b>是否调用、调用哪个、传什么参数，返回结构化调用请求，由你的程序或 Anthropic 服务端执行。</p>
+      <div class="grid2">
+        <div class="card">
+          <h3>🖥️ 客户端工具 Client Tools</h3>
+          <ul>
+            <li>在<b>你的应用</b>中执行</li>
+            <li>Claude 返回 <code>stop_reason: tool_use</code></li>
+            <li>你执行操作后回传 <code>tool_result</code></li>
+            <li>含自定义工具 + Anthropic 预置 schema（bash、text_editor、computer_use、memory）</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>☁️ 服务端工具 Server Tools</h3>
+          <ul>
+            <li>在 <b>Anthropic 基础设施</b>上执行</li>
+            <li>结果直接返回，无需你写执行代码</li>
+            <li>含 web_search、web_fetch、code_execution、tool_search、MCP 连接器等</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="footer"><span>Tool Use · Overview</span><span>2 / 10</span></div>
+  </div>
+
+  <!-- 3 -->
+  <div class="slide">
+    <div class="kicker">02 · 工作原理</div>
+    <h2>工具调用的完整循环</h2>
+    <div class="content">
+      <div class="steps">
+        <div class="step"><span class="n">1</span><h4>发送请求 + 工具定义</h4><p>在 <code>tools</code> 参数中声明可用工具的 name / description / input_schema</p></div>
+        <div class="step"><span class="n">2</span><h4>Claude 返回 tool_use</h4><p><code>stop_reason:"tool_use"</code>，内含调用的工具名与参数 <code>input</code></p></div>
+        <div class="step"><span class="n">3</span><h4>执行工具</h4><p>你的程序运行真实逻辑（查数据库、调 API、写文件等）</p></div>
+        <div class="step"><span class="n">4</span><h4>回传 tool_result</h4><p>以新的 user 消息发送 <code>tool_result</code>，用 <code>tool_use_id</code> 对应</p></div>
+        <div class="step"><span class="n">5</span><h4>循环至完成</h4><p>重复 2-4，直到 <code>stop_reason</code> 变为 <code>end_turn</code> 等终止状态</p></div>
+      </div>
+      <p style="font-size:15px;color:var(--muted);margin-top:6px;">⚠️ 关键点：Claude 从不直接执行代码，它只产出结构化请求；驱动整个循环、真正执行操作的永远是你的应用。</p>
+    </div>
+    <div class="footer"><span>How Tool Use Works</span><span>3 / 10</span></div>
+  </div>
+
+  <!-- 4 -->
+  <div class="slide">
+    <div class="kicker">03 · 定义工具</div>
+    <h2>Define Tools：Schema 与最佳实践</h2>
+    <div class="content">
+      <div class="grid2">
+        <div class="card">
+          <h3>Schema 四要素</h3>
+          <table>
+            <tr><th>字段</th><th>说明</th></tr>
+            <tr><td><code>name</code></td><td>工具标识（正则 <code>^[a-zA-Z0-9_-]{1,64}$</code>）</td></tr>
+            <tr><td><code>description</code></td><td>详细说明用途、使用/不使用场景</td></tr>
+            <tr><td><code>input_schema</code></td><td>JSON Schema 定义参数</td></tr>
+            <tr><td><code>input_examples</code></td><td>（可选）示例输入，帮助理解用法</td></tr>
+          </table>
+        </div>
+        <div class="card">
+          <h3>最佳实践</h3>
+          <ul>
+            <li>描述要<b>极其详细</b>（建议 3-4 句起）</li>
+            <li>复杂工具用 <code>input_examples</code> 辅助</li>
+            <li>相关操作<b>合并</b>为一个工具 + action 参数</li>
+            <li>用服务名做<b>命名空间前缀</b>（如 github_list_prs）</li>
+            <li>返回结果只保留<b>高信噪比</b>信息，用稳定标识符</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="footer"><span>Define Tools</span><span>4 / 10</span></div>
+  </div>
+
+  <!-- 5 -->
+  <div class="slide">
+    <div class="kicker">04 · 处理结果</div>
+    <h2>Handle Tool Calls：格式规则与安全</h2>
+    <div class="content">
+      <div class="grid2">
+        <div class="card">
+          <h3>格式硬性规则</h3>
+          <ul>
+            <li>tool_result 必须<b>紧跟</b>对应的 tool_use</li>
+            <li>user 消息中 tool_result 必须排在 <b>text 之前</b></li>
+            <li>assistant 与 user 之间不能插入其他消息</li>
+            <li>失败时设置 <code>is_error: true</code></li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>⚠️ 安全提醒</h3>
+          <p>把网页、邮件、外部 API 等<b>不可信内容</b>放入 <code>tool_result</code> 块中，不要放进 <code>system</code> 或普通 <code>text</code> 块，以防间接提示注入（prompt injection）攻击。</p>
+        </div>
+      </div>
+      <p style="font-size:15px;color:var(--muted);">💡 SDK 提供 <b>Tool Runner</b>，可自动完成解析 tool_use、格式化结果、错误处理与重试，简化手动实现。</p>
+    </div>
+    <div class="footer"><span>Handle Tool Calls</span><span>5 / 10</span></div>
+  </div>
+
+  <!-- 6 -->
+  <div class="slide">
+    <div class="kicker">05 · 并行调用</div>
+    <h2>Parallel Tool Use：并行工具调用</h2>
+    <div class="content">
+      <p style="font-size:16.5px;">Claude 可以在一次回复中返回<b style="color:var(--accent2);">多个 tool_use 块</b>；关键规则是：所有对应的 <code>tool_result</code> 必须放在<b>同一条 user 消息</b>中一起返回。</p>
+      <div class="grid2">
+        <div class="card">
+          <h3>何时并行 / 何时顺序</h3>
+          <ul>
+            <li><b>并行</b>：无副作用的独立读操作、多方查询</li>
+            <li><b>顺序</b>：有副作用的写操作、依赖前序结果、共享状态</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>控制开关</h3>
+          <ul>
+            <li><code>tool_choice:{type:"auto", disable_parallel_tool_use:true}</code> → 最多调用一次</li>
+            <li><code>tool_choice:{type:"any"}</code> → 必须恰好调用一次</li>
+            <li>系统提示中加「只批量执行相互独立的调用」可减少误并行</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="footer"><span>Parallel Tool Use</span><span>6 / 10</span></div>
+  </div>
+
+  <!-- 7 -->
+  <div class="slide">
+    <div class="kicker">06 · 服务端工具</div>
+    <h2>Web Search Tool：联网搜索</h2>
+    <div class="content">
+      <p style="font-size:16px;">让 Claude 获取知识截止日期之后的实时信息，回答附带引用来源。</p>
+      <div class="grid2">
+        <div class="card">
+          <h3>关键参数</h3>
+          <ul>
+            <li><code>max_uses</code> 限制单次请求搜索次数</li>
+            <li><code>allowed_domains</code> / <code>blocked_domains</code> 域名白/黑名单</li>
+            <li><code>user_location</code> 按城市/地区/时区本地化结果</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>计费与生效场景</h3>
+          <ul>
+            <li>$10 / 1000 次搜索 + 常规 token 费用</li>
+            <li>适合：新闻时事、实时价格、组织/人物近况</li>
+            <li>不适合：数学常识、创意写作、纯分析已有内容</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="footer"><span>Web Search Tool</span><span>7 / 10</span></div>
+  </div>
+
+  <!-- 8 -->
+  <div class="slide">
+    <div class="kicker">07 · 客户端工具</div>
+    <h2>Text Editor Tool：文本编辑器工具</h2>
+    <div class="content">
+      <p style="font-size:16px;">让 Claude 直接查看、创建、编辑文本文件，用于调试代码、重构、写文档、生成测试。工具名固定为 <code>str_replace_based_edit_tool</code>。</p>
+      <div class="grid2">
+        <div class="card">
+          <h3>支持的命令</h3>
+          <table>
+            <tr><th>命令</th><th>作用</th></tr>
+            <tr><td><code>view</code></td><td>查看文件/目录内容</td></tr>
+            <tr><td><code>str_replace</code></td><td>精确替换指定文本</td></tr>
+            <tr><td><code>create</code></td><td>创建新文件</td></tr>
+            <tr><td><code>insert</code></td><td>在指定行插入文本</td></tr>
+          </table>
+        </div>
+        <div class="card">
+          <h3>实现要点</h3>
+          <ul>
+            <li>路径校验，防止目录穿越攻击</li>
+            <li>修改前建议创建备份</li>
+            <li><code>str_replace</code> 必须保证唯一匹配</li>
+            <li>可选 <code>max_characters</code> 控制大文件截断</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="footer"><span>Text Editor Tool</span><span>8 / 10</span></div>
+  </div>
+
+  <!-- 9 -->
+  <div class="slide">
+    <div class="kicker">08 · 全景总览</div>
+    <h2>工具目录与定价模型</h2>
+    <div class="content">
+      <div class="grid2">
+        <div class="card">
+          <h3>三类工具一览</h3>
+          <table>
+            <tr><th>类型</th><th>执行方</th><th>示例</th></tr>
+            <tr><td>自定义工具</td><td>你的应用</td><td>业务 API、内部系统</td></tr>
+            <tr><td>Anthropic 预置(客户端)</td><td>你的应用</td><td>bash、text_editor、computer_use、memory</td></tr>
+            <tr><td>服务端工具</td><td>Anthropic</td><td>web_search、code_execution、MCP</td></tr>
+          </table>
+        </div>
+        <div class="card">
+          <h3>Token 成本构成</h3>
+          <ul>
+            <li>输入 token：工具定义(name/description/schema)</li>
+            <li>输出 token：生成的回复内容</li>
+            <li>工具开销：系统提示额外 token（因模型/tool_choice而异）</li>
+            <li>服务端工具另计费，如 Web Search $10/千次</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="footer"><span>Tool Reference & Pricing</span><span>9 / 10</span></div>
+  </div>
+
+  <!-- 10 -->
+  <div class="slide">
+    <div class="kicker">09 · 延伸对比 & 总结</div>
+    <h2>对比视角：OpenAI 的对话状态管理</h2>
+    <div class="content">
+      <div class="compare">
+        <div class="col">
+          <h3>OpenAI：三种维护对话状态方式</h3>
+          <ul>
+            <li><b>手动管理上下文</b>：自行拼接完整 messages 数组，简单但历史随轮次增长</li>
+            <li><b>Conversations API</b>：服务端持久化会话对象，代码更干净，但引入外部依赖</li>
+            <li><b>previous_response_id 链式引用</b>：传入上一响应 ID 延续上下文，适合简单问答链</li>
+          </ul>
+        </div>
+        <div class="col">
+          <h3>与 Claude 工具循环的差异</h3>
+          <ul>
+            <li>Claude 的多轮工具调用本质上仍是<b>显式消息数组</b>拼接（tool_use ↔ tool_result 严格配对）</li>
+            <li>两家都强调：上下文越长，token 消耗与费用越高</li>
+            <li>共同点：都需要对「历史记录如何传递」做工程取舍</li>
+          </ul>
+        </div>
+      </div>
+      <p style="font-size:14.5px;color:var(--muted);margin-top:10px;">📌 总结：工具使用把 Claude 的判断力和外部世界的执行力连接起来——你负责定义边界（schema）、执行动作、传回结果，Claude 负责推理「何时、如何」调用。</p>
+    </div>
+    <div class="footer"><span>Comparison & Summary</span><span>10 / 10</span></div>
+  </div>
+
+</div>
+
+<div class="nav">
+  <button id="prev">‹</button>
+  <span class="count"><span id="cur">1</span> / <span id="total">10</span></span>
+  <button id="next">›</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  let idx = 0;
+  document.getElementById('total').textContent = slides.length;
+  function show(i){
+    slides.forEach((s,j)=>s.classList.toggle('active', j===i));
+    document.getElementById('cur').textContent = i+1;
+    document.getElementById('prev').disabled = i===0;
+    document.getElementById('next').disabled = i===slides.length-1;
+  }
+  document.getElementById('prev').onclick = ()=>{ if(idx>0){idx--; show(idx);} };
+  document.getElementById('next').onclick = ()=>{ if(idx<slides.length-1){idx++; show(idx);} };
+  document.addEventListener('keydown', e=>{
+    if(e.key==='ArrowRight') document.getElementById('next').click();
+    if(e.key==='ArrowLeft') document.getElementById('prev').click();
+  });
+  show(0);
+</script>
+</body>
+</html>
