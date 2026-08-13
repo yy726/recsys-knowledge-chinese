@@ -1,0 +1,1992 @@
+<title>OneSearch 家族 · 端到端生成式电商搜索算法精讲</title>
+
+<style>
+/* ─────────── tokens: light (bare :root = complete palette) ─────────── */
+:root{
+  --paper:#F6F5F1;
+  --surface:#FFFFFF;
+  --surface-2:#ECEBE5;
+  --ink:#16181D;
+  --ink-2:#3E434D;
+  --muted:#6E7480;
+  --line:#D6D5CE;
+  --line-soft:#E4E3DC;
+
+  /* 语义 ID 层级编码：RQ = 层次共性(teal)，OPQ = 独特残差(amber) */
+  --rq:#1B6E6A;
+  --rq-2:#2F918C;
+  --rq-3:#63B3AD;
+  --opq:#B0721F;
+  --opq-2:#D19B3F;
+  /* V2 新增能力 */
+  --v2:#6B45B8;
+  --v2-soft:#EDE6FA;
+
+  --good:#2C7350;
+  --bad:#AC3A31;
+
+  --rq-wash:#E1EFEE;
+  --opq-wash:#F6EBD8;
+
+  --f-sans:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",-apple-system,system-ui,"Segoe UI",sans-serif;
+  --f-mono:"SF Mono",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
+
+  --shadow:0 1px 2px rgba(20,22,28,.05),0 8px 24px -12px rgba(20,22,28,.14);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#101216;
+    --surface:#171A20;
+    --surface-2:#1E222A;
+    --ink:#EDEDE8;
+    --ink-2:#C3C6CD;
+    --muted:#8B919C;
+    --line:#2B3038;
+    --line-soft:#232830;
+
+    --rq:#5FBDB5;
+    --rq-2:#49A69E;
+    --rq-3:#8AD2CB;
+    --opq:#E0A84F;
+    --opq-2:#C68C34;
+    --v2:#A98BEA;
+    --v2-soft:#241C3A;
+
+    --good:#63BC8D;
+    --bad:#E0776C;
+
+    --rq-wash:#14282A;
+    --opq-wash:#2B2113;
+
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px -14px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#101216;
+  --surface:#171A20;
+  --surface-2:#1E222A;
+  --ink:#EDEDE8;
+  --ink-2:#C3C6CD;
+  --muted:#8B919C;
+  --line:#2B3038;
+  --line-soft:#232830;
+
+  --rq:#5FBDB5;
+  --rq-2:#49A69E;
+  --rq-3:#8AD2CB;
+  --opq:#E0A84F;
+  --opq-2:#C68C34;
+  --v2:#A98BEA;
+  --v2-soft:#241C3A;
+
+  --good:#63BC8D;
+  --bad:#E0776C;
+
+  --rq-wash:#14282A;
+  --opq-wash:#2B2113;
+
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px -14px rgba(0,0,0,.7);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:var(--f-sans);
+  font-size:16px;
+  line-height:1.7;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ─────────── rail ─────────── */
+.rail{
+  position:fixed; left:0; top:0; bottom:0; width:52px;
+  display:flex; flex-direction:column; align-items:center;
+  gap:0; padding:20px 0; z-index:40;
+  border-right:1px solid var(--line-soft);
+  background:var(--paper);
+}
+.rail-part{ display:flex; flex-direction:column; align-items:center; gap:3px; padding:7px 0; }
+.rail-part + .rail-part{ border-top:1px solid var(--line-soft); }
+.rail-tick{
+  width:12px; height:3px; border-radius:1px;
+  background:var(--line); transition:all .18s ease;
+  border:0; padding:0; cursor:pointer;
+}
+.rail-tick:hover{ background:var(--muted); width:18px; }
+.rail-tick.on{ background:var(--ink); width:22px; }
+.rail-tick:focus-visible{ outline:2px solid var(--v2); outline-offset:2px; }
+.rail-label{
+  font-family:var(--f-mono); font-size:8.5px; letter-spacing:.09em;
+  color:var(--muted); writing-mode:vertical-rl; margin-top:4px;
+}
+
+/* ─────────── slides ─────────── */
+#deck{ margin-left:52px; }
+.slide{
+  display:none;
+  min-height:100vh;
+  padding:46px clamp(24px,5vw,72px) 78px;
+  flex-direction:column;
+}
+.slide.on{ display:flex; animation:rise .28s ease both; }
+@keyframes rise{ from{opacity:0; transform:translateY(7px)} to{opacity:1; transform:none} }
+@media (prefers-reduced-motion: reduce){
+  .slide.on{ animation:none }
+  *{ transition:none !important }
+}
+.wrap{ width:100%; max-width:1140px; margin:0 auto; }
+
+.eyebrow{
+  font-family:var(--f-mono); font-size:11px; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--muted); margin-bottom:14px;
+  display:flex; gap:12px; align-items:center;
+}
+.eyebrow b{ color:var(--ink); font-weight:600; }
+.eyebrow .dot{ width:4px;height:4px;border-radius:50%;background:var(--line); }
+
+h1{
+  font-size:clamp(34px,5.4vw,62px); line-height:1.14; font-weight:700;
+  letter-spacing:-.02em; margin:0 0 20px; text-wrap:balance;
+}
+h2{
+  font-size:clamp(25px,3.4vw,38px); line-height:1.25; font-weight:650;
+  letter-spacing:-.015em; margin:0 0 8px; text-wrap:balance;
+}
+.sub{ font-size:clamp(15px,1.5vw,18px); color:var(--muted); margin:0 0 30px; max-width:62ch; }
+p{ margin:0 0 14px; max-width:70ch; color:var(--ink-2); }
+strong{ color:var(--ink); font-weight:600; }
+code{
+  font-family:var(--f-mono); font-size:.87em;
+  background:var(--surface-2); padding:1px 5px; border-radius:4px;
+  color:var(--ink); white-space:nowrap;
+}
+
+/* ─────────── SID chips: the deck's signature motif ─────────── */
+.sid{ display:inline-flex; gap:4px; flex-wrap:wrap; font-family:var(--f-mono); font-size:13px; vertical-align:middle; }
+.sid span{ padding:3px 8px; border-radius:5px; font-weight:600; letter-spacing:-.01em; white-space:nowrap; }
+.sid .r{ background:var(--rq-wash); color:var(--rq); border:1px solid color-mix(in srgb, var(--rq) 26%, transparent); }
+.sid .o{ background:var(--opq-wash); color:var(--opq); border:1px solid color-mix(in srgb, var(--opq) 30%, transparent); }
+.sid .x{ background:transparent; color:var(--muted); border:1px dashed var(--line); }
+
+/* ─────────── layout helpers ─────────── */
+.grid2{ display:grid; grid-template-columns:repeat(auto-fit,minmax(310px,1fr)); gap:18px; }
+.grid3{ display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:16px; }
+.stack{ display:flex; flex-direction:column; gap:20px; }
+.row{ display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start; }
+
+.card{
+  background:var(--surface); border:1px solid var(--line-soft);
+  border-radius:12px; padding:20px 22px; box-shadow:var(--shadow);
+}
+.card h3{ margin:0 0 8px; font-size:17px; font-weight:650; letter-spacing:-.01em; }
+.card p{ margin:0; font-size:14.5px; line-height:1.65; }
+.card p + p{ margin-top:9px; }
+.card .num{
+  font-family:var(--f-mono); font-size:11px; letter-spacing:.12em;
+  color:var(--muted); display:block; margin-bottom:9px;
+}
+.card.rq{ border-left:3px solid var(--rq); }
+.card.opq{ border-left:3px solid var(--opq); }
+.card.v2{ border-left:3px solid var(--v2); }
+
+/* 反直觉发现 */
+.insight{
+  background:var(--v2-soft); border:1px solid color-mix(in srgb, var(--v2) 30%, transparent);
+  border-radius:12px; padding:18px 22px;
+}
+.insight .tag{
+  font-family:var(--f-mono); font-size:10.5px; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--v2); font-weight:700; display:block; margin-bottom:7px;
+}
+.insight p{ margin:0; color:var(--ink); font-size:15px; }
+.insight p + p{ margin-top:9px; }
+
+.note{
+  border-left:2px solid var(--line); padding-left:14px;
+  font-size:13.5px; color:var(--muted); max-width:74ch;
+}
+
+/* ─────────── formulas ─────────── */
+.eq{
+  font-family:var(--f-mono); font-size:14.5px; line-height:1.9;
+  background:var(--surface-2); border-radius:10px; padding:15px 18px;
+  overflow-x:auto; color:var(--ink); border:1px solid var(--line-soft);
+}
+.eq .c{ color:var(--muted); }
+.eq b{ color:var(--rq); font-weight:600; }
+.eq i{ color:var(--opq); font-style:normal; font-weight:600; }
+.eq u{ color:var(--v2); text-decoration:none; font-weight:600; }
+
+/* ─────────── tables ─────────── */
+.tw{ overflow-x:auto; border:1px solid var(--line-soft); border-radius:10px; background:var(--surface); }
+table{ border-collapse:collapse; width:100%; font-size:13.5px; }
+th,td{ padding:9px 14px; text-align:right; border-bottom:1px solid var(--line-soft); white-space:nowrap; }
+th:first-child,td:first-child{ text-align:left; }
+th{
+  font-family:var(--f-mono); font-size:10.5px; letter-spacing:.09em; text-transform:uppercase;
+  color:var(--muted); font-weight:600; background:var(--surface-2);
+}
+tbody tr:last-child td{ border-bottom:0; }
+td{ font-variant-numeric:tabular-nums; color:var(--ink-2); }
+td.best{ color:var(--ink); font-weight:650; }
+tr.hl td{ background:color-mix(in srgb, var(--v2) 8%, transparent); }
+tr.dim td{ color:var(--muted); }
+.up{ color:var(--good); font-weight:600; }
+.down{ color:var(--bad); font-weight:600; }
+
+/* ─────────── figures ─────────── */
+figure{ margin:0; }
+figure svg{ width:100%; max-width:100%; height:auto; display:block; color:var(--ink-2); }
+figcaption{
+  font-size:12.5px; color:var(--muted); margin-top:10px;
+  font-family:var(--f-mono); letter-spacing:.01em; line-height:1.6;
+}
+.figbox{
+  background:var(--surface); border:1px solid var(--line-soft);
+  border-radius:12px; padding:20px; box-shadow:var(--shadow); overflow-x:auto;
+}
+
+/* ─────────── metric strip ─────────── */
+.metrics{ display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; }
+.metric{ background:var(--surface); border:1px solid var(--line-soft); border-radius:10px; padding:14px 16px; }
+.metric .v{ font-family:var(--f-mono); font-size:26px; font-weight:700; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
+.metric .k{ font-size:12.5px; color:var(--muted); margin-top:2px; }
+
+/* ─────────── HUD ─────────── */
+.hud{
+  position:fixed; right:20px; bottom:16px; z-index:50;
+  display:flex; align-items:center; gap:10px;
+  background:var(--surface); border:1px solid var(--line-soft);
+  border-radius:999px; padding:6px 8px 6px 14px; box-shadow:var(--shadow);
+}
+.hud .cnt{ font-family:var(--f-mono); font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums; }
+.hud button{
+  width:28px; height:28px; border-radius:50%; border:1px solid var(--line);
+  background:transparent; color:var(--ink); cursor:pointer; font-size:13px; line-height:1;
+  display:grid; place-items:center; font-family:var(--f-mono);
+}
+.hud button:hover{ background:var(--surface-2); }
+.hud button:focus-visible{ outline:2px solid var(--v2); outline-offset:2px; }
+
+/* cover */
+.cover{ justify-content:center; }
+.cover .kicker{
+  font-family:var(--f-mono); font-size:12px; letter-spacing:.2em; text-transform:uppercase;
+  color:var(--muted); margin-bottom:24px;
+}
+.cover .meta{
+  display:flex; gap:26px; flex-wrap:wrap; margin-top:34px;
+  padding-top:24px; border-top:1px solid var(--line);
+  font-size:13.5px; color:var(--muted);
+}
+.cover .meta b{ display:block; color:var(--ink); font-family:var(--f-mono); font-size:12.5px; font-weight:600; }
+
+.divider{ height:1px; background:var(--line-soft); margin:6px 0; border:0; }
+ul.tight{ margin:0; padding-left:18px; color:var(--ink-2); font-size:14.5px; }
+ul.tight li{ margin-bottom:7px; }
+ul.tight li::marker{ color:var(--muted); }
+</style>
+
+<nav class="rail" id="rail" aria-label="幻灯片导航"></nav>
+
+<main id="deck">
+
+<!-- ══════════════════ 00 COVER ══════════════════ -->
+<section class="slide cover" data-part="开篇">
+  <div class="wrap">
+    <div class="kicker">Kuaishou Technology · ICML 2026 / arXiv 2603.24422</div>
+    <h1>OneSearch 家族<br>把电商搜索写成一次「生成」</h1>
+    <p class="sub" style="max-width:56ch">
+      从 V1 到 V2：如何用一个生成模型替掉「召回 → 粗排 → 精排」的整条流水线，
+      以及为什么把「思考」藏进权重里，比让模型说出来更划算。
+    </p>
+    <div class="sid" style="font-size:15px; margin-top:6px">
+      <span class="r">&lt;a_3558&gt;</span><span class="r">&lt;b_477&gt;</span><span class="r">&lt;c_161&gt;</span><span class="o">&lt;d_191&gt;</span><span class="o">&lt;d_324&gt;</span>
+    </div>
+    <p style="font-size:13px; color:var(--muted); margin-top:10px">
+      这是「苹果十七迷你」这条 query 的语义 ID。整套框架的全部机关，都围绕这 5 个 token 展开。
+    </p>
+    <div class="meta">
+      <div><b>OneSearch V1</b>arXiv 2509.03236 · ICML'26</div>
+      <div><b>OneSearch V2</b>arXiv 2603.24422</div>
+      <div><b>代码</b>github.com/benchen4395/onesearch-family</div>
+      <div><b>操作</b>← → 翻页 · 左侧刻度跳转</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════ 背景 ══════════════════ -->
+<section class="slide" data-part="背景">
+  <div class="wrap stack">
+    <div>
+      <div class="eyebrow"><b>背景 01</b><span class="dot"></span>要被替掉的东西</div>
+      <h2>传统搜索是一条漏斗，而漏斗有两个治不好的病</h2>
+      <p class="sub">多级级联架构（MCA）用「由粗到细」换响应时间：召回扫全库 10⁹，粗排收到 10⁴，精排只看 10²。</p>
+    </div>
+
+    <div class="figbox">
+      <figure>
+        <svg viewBox="0 0 900 260" role="img" aria-label="左：MCA 三级漏斗逐层过滤，意图商品可能在早期被丢弃；右：OneSearch 由 query 直接生成商品语义 ID">
+          <defs>
+            <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <polygon points="0,0 10,5 0,10" fill="currentColor"/>
+            </marker>
+            <marker id="arR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <polygon points="0,0 10,5 0,10" fill="var(--rq)"/>
+            </marker>
+            <marker id="arX" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <polygon points="0,0 10,5 0,10" fill="var(--bad)"/>
+            </marker>
+          </defs>
+
+          <text x="0" y="14" font-size="12" font-weight="700" fill="currentColor">(a) MCA 多级级联</text>
+          <text x="0" y="32" font-size="11" fill="var(--muted)">每一级换一个模型、一套目标</text>
+
+          <rect x="0" y="52" width="72" height="46" rx="5" fill="none" stroke="currentColor" stroke-width="1.2"/>
+          <text x="36" y="72" font-size="11" text-anchor="middle" fill="currentColor">召回</text>
+          <text x="36" y="89" font-size="10" text-anchor="middle" fill="var(--muted)">10⁹</text>
+
+          <rect x="112" y="52" width="72" height="46" rx="5" fill="none" stroke="currentColor" stroke-width="1.2"/>
+          <text x="148" y="72" font-size="11" text-anchor="middle" fill="currentColor">粗排</text>
+          <text x="148" y="89" font-size="10" text-anchor="middle" fill="var(--muted)">10⁴</text>
+
+          <rect x="224" y="52" width="72" height="46" rx="5" fill="none" stroke="currentColor" stroke-width="1.2"/>
+          <text x="260" y="72" font-size="11" text-anchor="middle" fill="currentColor">精排</text>
+          <text x="260" y="89" font-size="10" text-anchor="middle" fill="var(--muted)">10²</text>
+
+          <line x1="74" y1="75" x2="108" y2="75" stroke="currentColor" stroke-width="1.2" marker-end="url(#ar)"/>
+          <line x1="186" y1="75" x2="220" y2="75" stroke="currentColor" stroke-width="1.2" marker-end="url(#ar)"/>
+          <line x1="298" y1="75" x2="332" y2="75" stroke="currentColor" stroke-width="1.2" marker-end="url(#ar)"/>
+          <text x="348" y="79" font-size="11" fill="currentColor">结果页</text>
+
+          <text x="93" y="46" font-size="9" text-anchor="middle" fill="var(--muted)">过滤</text>
+          <text x="205" y="46" font-size="9" text-anchor="middle" fill="var(--muted)">过滤</text>
+
+          <path d="M148 100 L148 132" stroke="var(--bad)" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#arX)"/>
+          <text x="156" y="128" font-size="10.5" fill="var(--bad)">意图商品在这里被丢掉，后面再准也救不回来</text>
+
+          <line x1="0" y1="158" x2="380" y2="158" stroke="var(--line)" stroke-width="1"/>
+          <text x="0" y="178" font-size="10.5" fill="var(--muted)">算力碎片化 · MFU 仅 3.26%</text>
+          <text x="0" y="196" font-size="10.5" fill="var(--muted)">目标冲突 · 粗排求全、精排求准</text>
+          <text x="0" y="214" font-size="10.5" fill="var(--muted)">冷启动 query / 商品无从理解</text>
+
+          <line x1="440" y1="0" x2="440" y2="240" stroke="var(--line)" stroke-width="1"/>
+
+          <text x="470" y="14" font-size="12" font-weight="700" fill="var(--rq)">(b) OneSearch 端到端生成</text>
+          <text x="470" y="32" font-size="11" fill="var(--muted)">一个模型、一个目标、一次前向</text>
+
+          <rect x="470" y="52" width="96" height="46" rx="5" fill="var(--rq-wash)" stroke="var(--rq)" stroke-width="1.3"/>
+          <text x="518" y="72" font-size="11" text-anchor="middle" fill="var(--rq)">query + 用户</text>
+          <text x="518" y="89" font-size="10" text-anchor="middle" fill="var(--muted)">全部输入</text>
+
+          <rect x="606" y="52" width="110" height="46" rx="5" fill="var(--rq-wash)" stroke="var(--rq)" stroke-width="1.3"/>
+          <text x="661" y="72" font-size="11" text-anchor="middle" fill="var(--rq)">生成模型 M</text>
+          <text x="661" y="89" font-size="10" text-anchor="middle" fill="var(--muted)">beam=512</text>
+
+          <rect x="756" y="52" width="120" height="46" rx="5" fill="none" stroke="var(--rq)" stroke-width="1.3"/>
+          <text x="816" y="72" font-size="11" text-anchor="middle" fill="var(--rq)">商品 SID 列表</text>
+          <text x="816" y="89" font-size="10" text-anchor="middle" fill="var(--muted)">直接就是排序</text>
+
+          <line x1="568" y1="75" x2="602" y2="75" stroke="var(--rq)" stroke-width="1.3" marker-end="url(#arR)"/>
+          <line x1="718" y1="75" x2="752" y2="75" stroke="var(--rq)" stroke-width="1.3" marker-end="url(#arR)"/>
+
+          <line x1="470" y1="158" x2="880" y2="158" stroke="var(--line)" stroke-width="1"/>
+          <text x="470" y="178" font-size="10.5" fill="var(--good)">MFU 3.26% → 27.32%（+700%）</text>
+          <text x="470" y="196" font-size="10.5" fill="var(--good)">运营成本降到原来的 24.60%</text>
+          <text x="470" y="214" font-size="10.5" fill="var(--good)">生成顺序 = 展示顺序，无重排损耗</text>
+        </svg>
+        <figcaption>漏斗的根本问题不是「精排不够准」，而是精排只能对粗排交上来的那批商品重新排序 —— 上限被前面锁死了。</figcaption>
+      </figure>
+    </div>
+
+    <div class="note">
+      论文给出的反证实验很直接：线上把 MCA 的精排整级摘掉，只留召回+粗排，订单量掉 39.14%。
+      而纯生成的 OneSearch 能打平整条链路 —— 说明它一个模型同时具备了召回的「全」和精排的「准」。
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-part="背景">
+  <div class="wrap stack">
+    <div>
+      <div class="eyebrow"><b>背景 02</b><span class="dot"></span>生成式检索的地基</div>
+      <h2>语义 ID：把一亿个商品塞进一个 5 token 的词表</h2>
+      <p class="sub">生成模型没法「生成」一个 64 位商品 ID。必须先把商品变成一小段有语义、有层次的离散 token。</p>
+    </div>
+
+    <div class="grid2">
+      <div class="card rq">
+        <span class="num">机制</span>
+        <h3>由粗到细的编码链</h3>
+        <p>商品内容 → 一个稠密向量 → 逐层残差量化 → 一串码本下标。同一层码字相同的商品，共享该层级的语义。</p>
+        <div style="margin-top:14px" class="sid">
+          <span class="r">&lt;a_1806&gt;</span><span class="r">&lt;b_200&gt;</span><span class="r">&lt;c_403&gt;</span><span class="o">&lt;d_52&gt;</span><span class="o">&lt;d_313&gt;</span>
+        </div>
+        <p style="margin-top:12px; font-size:13.5px">
+          前三位（<span style="color:var(--rq);font-weight:600">teal</span>）是 RQ 层：类目、大属性这类<strong>共性</strong>。<br>
+          后两位（<span style="color:var(--opq);font-weight:600">amber</span>）是 OPQ 层：区分「像但不是同一个」商品的<strong>个性</strong>。
+        </p>
+      </div>
+      <div class="card">
+        <span class="num">于是搜索变成</span>
+        <h3>一个 seq2seq 任务</h3>
+        <p>输入拼成一句话：用户 ID、当前 query、query 的 SID、最近搜索序列、历史点击序列、长期行为向量。</p>
+        <div class="eq" style="margin:12px 0 0; font-size:13px">
+𝓘 := 𝓜( <b>uid</b>, q, SID<sub>q</sub>, Seq<sub>q</sub>, Seq<sub>short</sub>, Seq<sub>long</sub><sup>emb</sup>, 𝒰 )
+        </div>
+        <p style="margin-top:12px">
+          输出用 beam search 展开 512 条，每条就是一个商品 SID。<strong>beam 的得分顺序，直接就是展示顺序</strong> —— 排序不再是一个独立阶段。
+        </p>
+      </div>
+    </div>
+
+    <div class="note">
+      线上骨干用的是 BART-base 这类 encoder-decoder（论文说线上参数量至少是 BART 的 100 倍，未公开具体数字）。
+      选 encoder-decoder 而非 decoder-only，理由是结构上的训练/推理加速更成熟，能扛住搜索的延迟预算。
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-part="背景">
+  <div class="wrap stack">
+    <div>
+      <div class="eyebrow"><b>背景 03</b><span class="dot"></span>为什么不能照搬推荐</div>
+      <h2>电商搜索的三道坎</h2>
+      <p class="sub">OneRec（视频推荐）、OneSug（query 联想）都跑通了，但搜索不一样：它的输入和输出<strong>一边是开放词表，一边是封闭词表</strong>。</p>
+    </div>
+
+    <div class="grid3">
+      <div class="card">
+        <span class="num">坎 01</span>
+        <h3>商品文本又长又脏</h3>
+        <p>商家为了曝光会硬塞无关关键词，属性堆叠导致语义顺序很弱 —— 品牌、材质、类目出现在哪里全凭运气。编码器很容易被带偏。</p>
+      </div>
+      <div class="card">
+        <span class="num">坎 02</span>
+        <h3>强相关性约束</h3>
+        <p>query 通常只有 2–3 个词，错一个属性就是事故。可 SID 天然是「共享化」的，越分层越容易把核心属性抹平 —— 这是一对直接的矛盾。</p>
+      </div>
+      <div class="card">
+        <span class="num">坎 03</span>
+        <h3>意图藏在行为里</h3>
+        <p>「银戒指」到底是买给自己还是买给对象？只有把 query 和用户长短期行为一起看才知道。传统精排靠上千维特征硬拟合，几乎没有推理。</p>
+      </div>
+    </div>
+
+    <div class="insight">
+      <span class="tag">这三道坎，正好对应 V1 的三个模块</span>
+      <p>
+        坎 01 + 坎 02 → <strong>KHQE 关键词增强分层量化编码</strong>（把核心属性顶上来，再用 RQ+OPQ 同时保住共性和个性）<br>
+        坎 03 → <strong>Mu-Seq 多视角行为序列注入</strong> + <strong>PARS 偏好感知奖励系统</strong>
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════ V1 ══════════════════ -->
+<section class="slide" data-part="V1">
+  <div class="wrap stack">
+    <div>
+      <div class="eyebrow"><b>OneSearch V1</b><span class="dot"></span>总览</div>
+      <h2>三个模块，一条流水线</h2>
+      <p class="sub">V1 要解决的是「能不能用一个生成模型把整条搜索链路替掉」。答案是能，而且更省。</p>
+    </div>
+
+    <div class="grid3">
+      <div class="card rq">
+        <span class="num">模块 A · 表示</span>
+        <h3>KHQE</h3>
+        <p>关键词增强的分层量化编码。先把 query 和商品对齐到同一个表示空间，再用 <strong>RQ-Kmeans 抓层次</strong> + <strong>OPQ 抓残差</strong> 得到 5 位 SID。</p>
+      </div>
+      <div class="card rq">
+        <span class="num">模块 B · 输入</span>
+        <h3>Mu-Seq</h3>
+        <p>三路注入用户行为：行为构造的 user ID、prompt 里的显式短序列、模型内部的隐式长序列向量。</p>
+      </div>
+      <div class="card opq">
+        <span class="num">模块 C · 训练</span>
+        <h3>PARS</h3>
+        <p>三阶段 SFT（语义对齐 → 共现同步 → 用户个性化）+ 自适应奖励系统 + listwise DPO 偏好对齐。</p>
+      </div>
+    </div>
+
+    <div class="figbox">
+      <figure>
+        <svg viewBox="0 0 900 150" role="img" aria-label="OneSearch V1 数据流：内容与行为经 KHQE 与 Mu-Seq 进入 encoder-decoder，经三阶段 SFT 与偏好对齐后生成商品 SID">
+          <defs>
+            <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <polygon points="0,0 10,5 0,10" fill="currentColor"/>
+            </marker>
+          </defs>
+
+          <rect x="0" y="30" width="128" height="38" rx="5" fill="var(--rq-wash)" stroke="var(--rq)" stroke-width="1.2"/>
+          <text x="64" y="54" font-size="11.5" text-anchor="middle" fill="var(--rq)">商品/query 内容</text>
+
+          <rect x="0" y="82" width="128" height="38" rx="5" fill="var(--rq-wash)" stroke="var(--rq)" stroke-width="1.2"/>
+          <text x="64" y="106" font-size="11.5" text-anchor="middle" fill="var(--rq)">用户行为序列</text>
+
+          <rect x="176" y="30" width="118" height="38" rx="5" fill="none" stroke="currentColor" stroke-width="1.2"/>
+          <text x="235" y="54" font-size="11.5" text-anchor="middle" fill="currentColor">KHQE 编码</text>
+
+          <rect x="176" y="82" width="118" height="38" rx="5" fill="none" stroke="currentColor" stroke-width="1.2"/>
+          <text x="235" y="106" font-size="11.5" text-anchor="middle" fill="currentColor">Mu-Seq 注入</text>
+
+          <rect x="342" y="30" width="130" height="90" rx="6" fill="var(--surface-2)" stroke="currentColor" stroke-width="1.4"/>
+          <text x="407" y="66" font-size="12" text-anchor="middle" fill="currentColor" font-weight="600">Encoder–Decoder</text>
+          <text x="407" y="86" font-size="10.5" text-anchor="middle" fill="var(--muted)">BART-B 骨干</text>
+
+          <rect x="520" y="30" width="138" height="38" rx="5" fill="none" stroke="currentColor" stroke-width="1.2"/>
+          <text x="589" y="54" font-size="11.5" text-anchor="middle" fill="currentColor">三阶段 SFT</text>
+
+          <rect x="520" y="82" width="138" height="38" rx="5" fill="var(--opq-wash)" stroke="var(--opq)" stroke-width="1.2"/>
+          <text x="589" y="106" font-size="11.5" text-anchor="middle" fill="var(--opq)">奖励 + listwise DPO</text>
+
+          <rect x="706" y="52" width="150" height="46" rx="5" fill="none" stroke="currentColor" stroke-width="1.4"/>
+          <text x="781" y="72" font-size="11.5" text-anchor="middle" fill="currentColor">beam search 512</text>
+          <text x="781" y="89" font-size="10.5" text-anchor="middle" fill="var(--muted)">→ 有序商品 SID</text>
+
+          <line x1="130" y1="49" x2="172" y2="49" stroke="currentColor" stroke-width="1.2" marker-end="url(#a2)"/>
+          <line x1="130" y1="101" x2="172" y2="101" stroke="currentColor" stroke-width="1.2" marker-end="url(#a2)"/>
+          <line x1="296" y1="49" x2="338" y2="60" stroke="currentColor" stroke-width="1.2" marker-end="url(#a2)"/>
+          <line x1="296" y1="101" x2="338" y2="90" stroke="currentColor" stroke-width="1.2" marker-end="url(#a2)"/>
+          <line x1="474" y1="60" x2="516" y2="49" stroke="currentColor" stroke-width="1.2" marker-end="url(#a2)"/>
+          <line x1="474" y1="90" x2="516" y2="101" stroke="currentColor" stroke-width="1.2" marker-end="url(#a2)"/>
+          <line x1="660" y1="49" x2="702" y2="66" stroke="currentColor" stroke-width="1.2" marker-end="url(#a2)"/>
+          <line x1="660" y1="101" x2="702" y2="84" stroke="currentColor" stroke-width="1.2" marker-end="url(#a2)"/>
+
+          <text x="235" y="18" font-size="10" text-anchor="middle" fill="var(--muted)">离线 · 周级更新</text>
+          <text x="589" y="18" font-size="10" text-anchor="middle" fill="var(--muted)">训练 · 日级 / 准流式</text>
+          <text x="781" y="18" font-size="10" text-anchor="middle" fill="var(--muted)">在线 · 单次前向</text>
+        </svg>
+        <figcaption>三个模块分别管「表示」「输入」「训练」，推理时只剩最右边这一次前向 —— 这就是 MFU 提高 8 倍的来源。</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-part="V1">
+  <div class="wrap stack">
+    <div>
+      <div class="eyebrow"><b>KHQE · 第 1 步</b><span class="dot"></span>模块 A</div>
+      <h2>先让 query 和商品住进同一个表示空间</h2>
+      <p class="sub">如果 query 向量和商品向量各说各话，后面量化出来的 SID 就没有可比性。所以第一步是训一个对齐编码器。</p>
+    </div>
+
+    <div class="grid2">
+      <div class="stack">
+        <div class="card">
+          <span class="num">数据</span>
+          <h3>先挖高质量协同对</h3>
+          <p>用 ItemCF、Swing 从真实搜索日志里挖 query2query、item2item、query2item 三类对，再用余弦相似度 &gt; 0.6 过一遍，保证内容确实相关。</p>
+          <p>每条内容喂进去的是：query 文本、商品标题、价格、关键词、图片 OCR，加上点击 / 加购 / 成交的统计特征。编码器是蒸馏过的 BGE。</p>
+        </div>
+        <div class="note">
+          注意这里的设计意图：<strong>协同信号（谁和谁一起被点）负责决定「哪些该靠近」，语义模型负责把它们真的拉到一起</strong>。
+          纯语义相似的两个商品，如果从没被一起交互过，不会被强行拉近。
+        </div>
+      </div>
+
+      <div class="card">
+        <span class="num">五个 loss 各管一件事</span>
+        <h3>对齐目标</h3>
+        <div class="eq" style="margin:0 0 14px">
+𝓛<sub>align</sub> = λ₁<b>𝓛<sub>q2q</sub></b> + λ₂<b>𝓛<sub>i2i</sub></b> + λ₃<b>𝓛<sub>q2i</sub></b> + λ₄<i>𝓛<sub>rank</sub></i> + λ₅<i>𝓛<sub>rel</sub></i>
+        </div>
+        <ul class="tight">
+          <li><b style="color:var(--rq)">q2q / i2i</b> 对比损失 —— 把协同相似的同类对拉近</li>
+          <li><b style="color:var(--rq)">q2i</b> 对比损失 —— 让表示反映真实业务关系</li>
+          <li><b style="color:var(--opq)">rank</b> margin 损失 —— 区分「曝光 / 点击 / 成交」这几档强度，不是简单的正负二分类</li>
+          <li><b style="color:var(--opq)">rel</b> 困难样本纠偏 —— 相似度卡在阈值附近的对，用大 LLM 打一个相关性分，让 BGE 去拟合这个分</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-part="V1">
+  <div class="wrap stack">
+    <div>
+      <div class="eyebrow"><b>KHQE · 第 2 步</b><span class="dot"></span>模块 A</div>
+      <h2>核心关键词增强：把埋在噪声里的属性顶上来</h2>
+      <p class="sub">做法极简单，效果却出奇地好 —— 这是全篇性价比最高的一个 trick。</p>
+    </div>
+
+    <div class="grid2">
+      <div class="stack">
+        <div class="card">
+          <span class="num">怎么做</span>
+          <h3>18 类属性 NER + 向量平均</h3>
+          <p>用 NER 定义 18 类结构化属性（实体、修饰、品牌、材质、风格、功能、场景、受众、颜色、价格、型号、系列、季节、花型…），
+             从过去一年的点击 query-item 对里按 PV 降序挑出高频词作为核心关键词。</p>
+          <p>商品侧用 Qwen-VL 识别关键词；query 侧用 <strong>AC 自动机</strong> 实时匹配（毫秒级，能上线）。</p>
+        </div>
+        <div class="eq">
+e<sup>o</sup><sub>q</sub> = ½ ( e<sub>q</sub> + <span class="c">1/m</span> Σ e<sup>i</sup><sub>k</sub> ) &nbsp;&nbsp;
+e<sup>o</sup><sub>i</sub> = ½ ( e<sub>i</sub> + <span class="c">1/n</span> Σ e<sup>j</sup><sub>k</sub> )
+<span class="c">// 原始向量与核心关键词向量各占一半</span>
+        </div>
+      </div>
+
+      <div class="stack">
+        <div>
+          <div class="tw">
+            <table>
+              <thead><tr><th>配置（4096-1024-512）</th><th>CUR<sub>L1·L2</sub></th><th>CUR<sub>总</sub></th><th>ICR</th></tr></thead>
+              <tbody>
+                <tr><td>RQ-Kmeans 基线</td><td>39.21%</td><td>1.30%</td><td>40.54%</td></tr>
+                <tr class="hl"><td>+ 核心关键词</td><td class="best">48.95%</td><td class="best">1.64%</td><td class="best">43.32%</td></tr>
+                <tr class="hl"><td>+ L3 balanced</td><td>48.95%</td><td class="best">7.03%</td><td class="best">68.08%</td></tr>
+                <tr class="dim"><td>全层 balanced</td><td>41.45%</td><td>0.51%</td><td>33.47%</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p style="font-size:12.5px;color:var(--muted);margin-top:8px">
+            CUR＝码本利用率，ICR＝独立编码率（多少商品拥有唯一 SID）。两个都是越高越好。
+          </p>
+        </div>
+
+        <div class="insight">
+          <span class="tag">反直觉 · 别在所有层做 balanced kmeans</span>
+          <p>OneRec-V1 的做法是全层做均衡聚类逼高利用率。但电商商品属性粒度太细，<strong>早期就强行均分会导致层次聚类崩塌</strong> ——
+             表里最后一行，CUR 总利用率反而从 1.64% 掉到 0.51%。</p>
+          <p>正确做法是<strong>只在第三层做均衡</strong>：前两层放任它按语义自然聚，第三层负责把挤在一起的相似商品拆开。ICR 从 43% 直接跳到 68%。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-part="V1">
+  <div class="wrap stack">
+    <div>
+      <div class="eyebrow"><b>KHQE · 第 3 步</b><span class="dot"></span>本篇最核心的算法</div>
+      <h2>RQ-OPQ：用两种量化，分别承担共性与个性</h2>
+      <p class="sub">RQ 天生擅长层次，但它会把最后那点残差直接扔掉 —— 而残差里装的恰恰是「这个商品和它邻居的区别」。</p>
+    </div>
+
+    <div class="figbox">
+      <figure>
+        <svg viewBox="0 0 900 300" role="img" aria-label="RQ-OPQ 分层量化流程：增强后的向量经三层残差 K-means 得到前三位 SID，最终残差经 OPQ 得到后两位 SID">
+          <defs>
+            <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <polygon points="0,0 10,5 0,10" fill="currentColor"/>
+            </marker>
+            <marker id="a3o" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <polygon points="0,0 10,5 0,10" fill="var(--opq)"/>
+            </marker>
+          </defs>
+
+          <rect x="0" y="60" width="106" height="52" rx="6" fill="var(--surface-2)" stroke="currentColor" stroke-width="1.3"/>
+          <text x="53" y="82" font-size="11.5" text-anchor="middle" fill="currentColor" font-weight="600">e°</text>
+          <text x="53" y="99" font-size="10" text-anchor="middle" fill="var(--muted)">增强后向量</text>
+
+          <line x1="108" y1="86" x2="146" y2="86" stroke="currentColor" stroke-width="1.3" marker-end="url(#a3)"/>
+
+          <!-- RQ layers -->
+          <rect x="150" y="60" width="104" height="52" rx="6" fill="var(--rq-wash)" stroke="var(--rq)" stroke-width="1.4"/>
+          <text x="202" y="80" font-size="11.5" text-anchor="middle" fill="var(--rq)" font-weight="600">RQ 第 1 层</text>
+          <text x="202" y="98" font-size="10" text-anchor="middle" fill="var(--muted)">K=4096</text>
+
+          <rect x="288" y="60" width="104" height="52" rx="6" fill="var(--rq-wash)" stroke="var(--rq)" stroke-width="1.4"/>
+          <text x="340" y="80" font-size="11.5" text-anchor="middle" fill="var(--rq)" font-weight="600">RQ 第 2 层</text>
+          <text x="340" y="98" font-size="10" text-anchor="middle" fill="var(--muted)">K=1024</text>
+
+          <rect x="426" y="60" width="104" height="52" rx="6" fill="var(--rq-wash)" stroke="var(--rq)" stroke-width="1.4"/>
+          <text x="478" y="80" font-size="11.5" text-anchor="middle" fill="var(--rq)" font-weight="600">RQ 第 3 层</text>
+          <text x="478" y="98" font-size="10" text-anchor="middle" fill="var(--muted)">K=512 · 均衡</text>
+
+          <line x1="256" y1="86" x2="284" y2="86" stroke="var(--rq)" stroke-width="1.3" marker-end="url(#a3)"/>
+          <line x1="394" y1="86" x2="422" y2="86" stroke="var(--rq)" stroke-width="1.3" marker-end="url(#a3)"/>
+
+          <text x="270" y="52" font-size="9.5" text-anchor="middle" fill="var(--muted)">残差</text>
+          <text x="408" y="52" font-size="9.5" text-anchor="middle" fill="var(--muted)">残差</text>
+
+          <!-- residual to OPQ -->
+          <path d="M530 86 L568 86" stroke="var(--opq)" stroke-width="1.5" marker-end="url(#a3o)"/>
+          <text x="549" y="52" font-size="9.5" text-anchor="middle" fill="var(--opq)">最终残差</text>
+          <text x="549" y="66" font-size="9" text-anchor="middle" fill="var(--muted)">RQ 会丢掉它</text>
+
+          <rect x="572" y="60" width="118" height="52" rx="6" fill="var(--opq-wash)" stroke="var(--opq)" stroke-width="1.5"/>
+          <text x="631" y="80" font-size="11.5" text-anchor="middle" fill="var(--opq)" font-weight="600">OPQ 量化</text>
+          <text x="631" y="98" font-size="10" text-anchor="middle" fill="var(--muted)">2 × 256 子码</text>
+
+          <line x1="692" y1="86" x2="726" y2="86" stroke="var(--opq)" stroke-width="1.4" marker-end="url(#a3o)"/>
+
+          <rect x="730" y="52" width="152" height="68" rx="6" fill="none" stroke="currentColor" stroke-width="1.4"/>
+          <text x="806" y="76" font-size="11" text-anchor="middle" fill="currentColor" font-weight="600">最终 SID</text>
+          <text x="806" y="96" font-size="10.5" text-anchor="middle" fill="var(--muted)">5 位 · 层次+个性</text>
+
+          <!-- output chips -->
+          <rect x="150" y="152" width="82" height="26" rx="4" fill="var(--rq-wash)" stroke="var(--rq)" stroke-width="1"/>
+          <text x="191" y="170" font-size="11" text-anchor="middle" fill="var(--rq)" font-family="monospace">&lt;a_1806&gt;</text>
+          <rect x="288" y="152" width="82" height="26" rx="4" fill="var(--rq-wash)" stroke="var(--rq)" stroke-width="1"/>
+          <text x="329" y="170" font-size="11" text-anchor="middle" fill="var(--rq)" font-family="monospace">&lt;b_200&gt;</text>
+          <rect x="426" y="152" width="82" height="26" rx="4" fill="var(--rq-wash)" stroke="var(--rq)" stroke-width="1"/>
+          <text x="467" y="170" font-size="11" text-anchor="middle" fill="var(--rq)" font-family="monospace">&lt;c_403&gt;</text>
+          <rect x="572" y="152" width="56" height="26" rx="4" fill="var(--opq-wash)" stroke="var(--opq)" stroke-width="1"/>
+          <text x="600" y="170" font-size="11" text-anchor="middle" fill="var(--opq)" font-family="monospace">&lt;d_52&gt;</text>
+          <rect x="634" y="152" width="58" height="26" rx="4" fill="var(--opq-wash)" stroke="var(--opq)" stroke-width="1"/>
+          <text x="663" y="170" font-size="11" text-anchor="middle" fill="var(--opq)" font-family="monospace">&lt;d_313&gt;</text>
+
+          <line x1="202" y1="114" x2="196" y2="148" stroke="var(--rq)" stroke-width="1" stroke-dasharray="3 2"/>
+          <line x1="340" y1="114" x2="333" y2="148" stroke="var(--rq)" stroke-width="1" stroke-dasharray="3 2"/>
+          <line x1="478" y1="114" x2="471" y2="148" stroke="var(--rq)" stroke-width="1" stroke-dasharray="3 2"/>
+          <line x1="620" y1="114" x2="606" y2="148" stroke="var(--opq)" stroke-width="1" stroke-dasharray="3 2"/>
+          <line x1="645" y1="114" x2="659" y2="148" stroke="var(--opq)" stroke-width="1" stroke-dasharray="3 2"/>
+
+          <line x1="150" y1="200" x2="882" y2="200" stroke="var(--line)" stroke-width="1"/>
+          <text x="150" y="222" font-size="11.5" fill="var(--rq)" font-weight="600">纵向：层次语义</text>
+          <text x="150" y="240" font-size="10.5" fill="var(--muted)">同前缀 = 同类目/同大属性。让模型可以「先决定买什么品类，再决定买哪一件」。</text>
+          <text x="150" y="262" font-size="10.5" fill="var(--muted)">这也是 beam search 能高效剪枝的原因：错误的类目在第一步就被淘汰。</text>
+
+          <text x="572" y="222" font-size="11.5" fill="var(--opq)" font-weight="600">横向：独特属性</text>
+          <text x="572" y="240" font-size="10.5" fill="var(--muted)">把「像但不是同一个」的商品拆开。</text>
+          <text x="572" y="262" font-size="10.5" fill="var(--muted)">ICR 68.08% → 91.91%</text>
+        </svg>
+        <figcaption>RQ 管纵向层次、OPQ 管横向区分 —— 两种量化不是二选一，而是接力：OPQ 消费的正是 RQ 主动丢弃的那部分信息。</figcaption>
+      </figure>
+    </div>
+
+    <div class="grid2">
+      <div class="tw">
+        <table>
+          <thead><tr><th>Tokenizer</th><th>ICR</th><th>Recall@10</th><th>MRR@10</th></tr></thead>
+          <tbody>
+            <tr class="dim"><td>线上 MCA（基线）</td><td>—</td><td>0.3440</td><td>0.1323</td></tr>
+            <tr><td>RQ-VAE</td><td>38.83%</td><td>0.2171</td><td>0.0689</td></tr>
+            <tr><td>RQ-Kmeans</td><td>68.08%</td><td>0.2844</td><td>0.1038</td></tr>
+            <tr class="hl"><td>RQ-OPQ</td><td class="best">91.91%</td><td class="best">0.3369</td><td class="best">0.1194</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note" style="align-self:center">
+        两个附带结论：<br><br>
+        <strong>① RQ-Kmeans 全面优于 RQ-VAE</strong> —— 这与 OneRec 的结论一致，所以 V1 直接放弃了 VAE 路线。<br><br>
+        <strong>② 别加太多 OPQ 层</strong>。消融显示 OPQ(4/256) 反而掉 2.4%，把三层聚类结果也一起 OPQ 化（4×4/256）直接掉 24% ——
+        序列一长，层次特征就被淹没，大量商品重新挤回同一个 SID。<strong>2 层是甜点</strong>。
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-part="V1">
+  <div class="wrap stack">
+    <div>
+      <div class="eyebrow"><b>Mu-Seq</b><span class="dot"></span>模块 B</div>
+      <h2>用户行为的三条注入通道</h2>
+      <p class="sub">难点在于长序列可以到 10³ 量级，硬拼进 prompt 是不可能的。V1 的解法是按「时效性」分流。</p>
+    </div>
+
+    <div class="figbox">
+      <figure>
+        <svg viewBox="0 0 900 230" role="img" aria-label="用户行为三路注入：加权聚合成 user ID、短序列以 SID 文本进入 prompt、长序列经 RQ 质心聚合与 QFormer 成为向量注入 encoder">
+          <defs>
+            <marker id="a4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <polygon points="0,0 10,5 0,10" fill="currentColor"/>
+            </marker>
+          </defs>
+
+          <rect x="292" y="30" width="240" height="164" rx="8" fill="var(--surface-2)" stroke="currentColor" stroke-width="1.4"/>
+          <text x="412" y="56" font-size="12" text-anchor="middle" fill="currentColor" font-weight="600">Encoder 输入</text>
+          <line x1="312" y1="68" x2="512" y2="68" stroke="var(--line)" stroke-width="1"/>
+
+          <!-- 通道 1 -->
+          <rect x="0" y="30" width="176" height="42" rx="5" fill="none" stroke="var(--rq)" stroke-width="1.3"/>
+          <text x="88" y="49" font-size="11" text-anchor="middle" fill="var(--rq)" font-weight="600">① 行为构造 user ID</text>
+          <text x="88" y="65" font-size="9.5" text-anchor="middle" fill="var(--muted)">λᵢ = exp(√i) / Σexp(√i)</text>
+          <line x1="178" y1="51" x2="288" y2="82" stroke="var(--rq)" stroke-width="1.2" marker-end="url(#a4)"/>
+          <text x="332" y="86" font-size="10.5" fill="currentColor" font-family="monospace">uid（10 位）</text>
+
+          <!-- 通道 2 -->
+          <rect x="0" y="92" width="176" height="42" rx="5" fill="none" stroke="var(--rq)" stroke-width="1.3"/>
+          <text x="88" y="111" font-size="11" text-anchor="middle" fill="var(--rq)" font-weight="600">② 显式短序列</text>
+          <text x="88" y="127" font-size="9.5" text-anchor="middle" fill="var(--muted)">近期 query + 点击商品</text>
+          <line x1="178" y1="113" x2="288" y2="113" stroke="var(--rq)" stroke-width="1.2" marker-end="url(#a4)"/>
+          <text x="332" y="117" font-size="10.5" fill="currentColor" font-family="monospace">SID 文本直接拼进 prompt</text>
+
+          <!-- 通道 3 -->
+          <rect x="0" y="154" width="176" height="42" rx="5" fill="none" stroke="var(--opq)" stroke-width="1.3"/>
+          <text x="88" y="173" font-size="11" text-anchor="middle" fill="var(--opq)" font-weight="600">③ 隐式长序列</text>
+          <text x="88" y="189" font-size="9.5" text-anchor="middle" fill="var(--muted)">点击 / 成交 / RSU，~10³ 条</text>
+          <line x1="178" y1="175" x2="288" y2="146" stroke="var(--opq)" stroke-width="1.2" marker-end="url(#a4)"/>
+          <text x="332" y="150" font-size="10.5" fill="currentColor" font-family="monospace">Q ∈ ℝ^(N×768) 向量</text>
+
+          <!-- 长序列细节 -->
+          <line x1="0" y1="212" x2="880" y2="212" stroke="var(--line)" stroke-width="1"/>
+          <text x="0" y="228" font-size="10" fill="var(--muted)">③ 的压缩路径：item → RQ 质心查表（3 个 embedding）→ 按层级分别求和 → M_click / M_order / M_RSU → QFormer → 少量 token</text>
+
+          <rect x="560" y="82" width="130" height="30" rx="4" fill="none" stroke="currentColor" stroke-width="1.1" stroke-dasharray="3 2"/>
+          <text x="625" y="101" font-size="10.5" text-anchor="middle" fill="var(--muted)">当前 query + SID_q</text>
+          <rect x="560" y="122" width="130" height="30" rx="4" fill="none" stroke="currentColor" stroke-width="1.1" stroke-dasharray="3 2"/>
+          <text x="625" y="141" font-size="10.5" text-anchor="middle" fill="var(--muted)">用户画像 𝒰</text>
+          <line x1="534" y1="97" x2="556" y2="97" stroke="var(--line)" stroke-width="1.1"/>
+          <line x1="534" y1="137" x2="556" y2="137" stroke="var(--line)" stroke-width="1.1"/>
+
+          <rect x="716" y="96" width="164" height="46" rx="6" fill="none" stroke="currentColor" stroke-width="1.4"/>
+          <text x="798" y="116" font-size="11" text-anchor="middle" fill="currentColor">Decoder</text>
+          <text x="798" y="133" font-size="10" text-anchor="middle" fill="var(--muted)">生成商品 SID</text>
+          <line x1="694" y1="112" x2="712" y2="115" stroke="currentColor" stroke-width="1.2" marker-end="url(#a4)"/>
+        </svg>
+        <figcaption>短期偏好走文本、长期画像走向量 —— 关键在于长序列先被压成 RQ 质心再按层级聚合，既保留了多粒度语义又省掉了绝大部分 token。</figcaption>
+      </figure>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <span class="num">为什么 user ID 要用行为构造</span>
+        <h3>随机哈希 ID 是无效的</h3>
+        <p>TIGER 的做法是把用户哈希到固定词表。问题是行为完全不同的两个人可能拿到同一个 ID，这种 ID 不携带任何语义。</p>
+        <p>V1 改成对用户点击过的商品 SID 做<strong>加权求和再取整</strong>，权重 <code>λᵢ = exp(√i)/Σexp(√i)</code> 让近期行为占比更高。短序列和长序列各生成 5 位，拼成 10 位 user ID。</p>
+        <p style="margin-top:9px">冷启动用户？用该 query 下点击最多的商品按 PV 倒排，当作默认行为序列。</p>
+      </div>
+      <div>
+        <div class="tw">
+          <table>
+            <thead><tr><th>消融（相对 OneSearch）</th><th>成交 HR@350</th><th>点击 HR@350</th></tr></thead>
+            <tbody>
+              <tr><td>去掉行为 user ID</td><td class="down">−0.94%</td><td class="down">−1.72%</td></tr>
+              <tr class="hl"><td>去掉显式短序列</td><td class="down">−3.43%</td><td class="down">−4.15%</td></tr>
+              <tr><td>去掉隐式长序列</td><td class="down">−2.26%</td><td class="down">−3.00%</td></tr>
+              <tr><td>去掉滑窗增强</td><td class="down">−1.95%</td><td class="down">−1.80%</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p style="font-size:13px;color:var(--muted);margin-top:10px">
+          <strong>短序列贡献最大</strong>。滑窗增强指的是在 Seq<sub>short</sub> 上滑动取子序列 + 下一个商品当标签（最大窗长 5），
+          既教模型捕捉兴趣漂移，也顺手解决了新用户历史太短的问题。
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-part="V1">
+  <div class="wrap stack">
+    <div>
+      <div class="eyebrow"><b>PARS · 训练</b><span class="dot"></span>模块 C</div>
+      <h2>三阶段 SFT：从「认字」到「懂人」</h2>
+      <p class="sub">BART 预训练时见过的是自然语言，没见过 <code>&lt;a_3558&gt;</code>。所以必须先教它 SID 是什么意思，再教它怎么用。</p>
+    </div>
+
+    <div class="grid3">
+      <div class="card rq">
+        <span class="num">Stage 1</span>
+        <h3>语义对齐</h3>
+        <p style="margin-bottom:10px">让 SID 和文本互相翻译，并且都能落到正确类目。</p>
+        <ul class="tight" style="font-size:13.5px">
+          <li>query ↔ SID 双向</li>
+          <li>商品标题 ↔ SID 双向</li>
+          <li>query / 商品 → 类目</li>
+          <li>SID → 类目</li>
+        </ul>
+        <p style="margin-top:10px;font-size:13px;color:var(--muted)">前两个任务对齐符号，类目任务保住相关性。</p>
+      </div>
+      <div class="card rq">
+        <span class="num">Stage 2</span>
+        <h3>共现同步</h3>
+        <p style="margin-bottom:10px">暂时忽略用户，只学 query 和商品之间的内在语义与协同关系。</p>
+        <ul class="tight" style="font-size:13.5px">
+          <li>query ↔ item（文本层）</li>
+          <li>SID<sub>q</sub> ↔ SID<sub>i</sub>（符号层）</li>
+        </ul>
+        <p style="margin-top:10px;font-size:13px;color:var(--muted)">语料来自海量线上交互，学的是「什么 query 该出什么货」。</p>
+      </div>
+      <div class="card opq">
+        <span class="num">Stage 3</span>
+        <h3>用户个性化</h3>
+        <p style="margin-bottom:10px">把用户信息全部拼进来，输入格式与线上推理完全一致。</p>
+        <div class="eq" style="font-size:12px;padding:11px 13px;margin:0">
+[ uid, q, SID<sub>q</sub>, Seq<sub>q</sub>,<br>&nbsp;&nbsp;Seq<sub>short</sub>, Seq<sub>long</sub><sup>emb</sup> ] → SID<sub>item</sub>
+        </div>
+        <p style="margin-top:10px;font-size:13px;color:var(--muted)">滑窗增强就用在这一阶段。V2 后面动刀的也正是这一阶段。</p>
+      </div>
+    </div>
+
+    <div class="note">
+      <strong>更新节奏是分层的</strong>：多阶段 SFT 每周跑一次；带奖励模型的 RL 每天跑；基于真实用户交互的偏好对齐尽量做到准流式。
+      作者还提了一句 —— 奖励模型那部分其实每周跑也行，收益不大，<strong>除非赶上双 11、618 这种大促</strong>。
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-part="V1">
+  <div class="wrap stack">
+    <div>
+      <div class="eyebrow"><b>PARS · 对齐</b><span class="dot"></span>模块 C</div>
+      <h2>自适应奖励 + listwise DPO</h2>
+      <p class="sub">SFT 只会拟合「用户点了什么」，学不会「为什么这个比那个好」。偏好对齐要补的是这一课。</p>
+    </div>
+
+    <div class="grid2">
+      <div class="stack">
+        <div class="card">
+          <span class="num">第 1 层 · 行为分档</span>
+          <h3>六档权重</h3>
+          <p>把交互按强度分成六档，基础权重 <code>λ = [2.0, 1.5, 1.0, 0.5, 0.2, 0.0]</code>：</p>
+          <ul class="tight" style="font-size:13px;margin-top:8px">
+            <li>搜索场景成交 → 推荐场景同类目成交 → 点击</li>
+            <li>曝光未点 → 同类目未曝光 → 其他类目随机</li>
+          </ul>
+        </div>
+        <div class="card">
+          <span class="num">第 2 层 · 后验校准</span>
+          <h3>CTR / CVR 的偏差修正</h3>
+          <p>裸 CTR 不能直接用：只曝光过 1 次且被点了的新品 CTR＝100%；真正的爆款反而因为被 MCA 塞到各种次优 query 下而 CTR 偏低。</p>
+          <div class="eq" style="font-size:12.5px;margin-top:10px">
+Cnt<sub>T</sub> = log( (Cnt<sub>pos</sub>+10)(Cnt<sub>clk</sub>+10)(Cnt<sub>order</sub>+10) )
+Ctr<sub>i</sub> = log(Cnt<sub>clk</sub>+10) / Cnt<sub>T</sub>
+Cvr<sub>i</sub> = log(Cnt<sub>order</sub>+10) / log(Cnt<sub>clk</sub>+10)
+<span class="c">// 调和平均后乘以档位权重</span>
+r(q,i) = 2λ · (Ctr·Cvr)/(Ctr+Cvr)
+          </div>
+        </div>
+      </div>
+
+      <div class="stack">
+        <div class="card opq">
+          <span class="num">第 3 层 · 奖励模型</span>
+          <h3>三塔 SIM，不用 GRPO</h3>
+          <p>基于 SIM 的三塔结构，分别学 CTR / CVR / CTCVR，各用 BCE。相关性分单独加进来并<strong>放大 10 倍权重</strong>：</p>
+          <div class="eq" style="font-size:12.5px;margin-top:10px">
+Rscore = λ₁·CTR + λ₂·CVR + λ₃·CTCVR + <i>10·λ₄·S<sub>Rel</sub></i>
+          </div>
+          <p style="margin-top:10px">与线上精排的关键区别：<strong>只吃 OneSearch 能拿到的那几个特征</strong>（uid、query、行为序列、画像），而不是上千维 —— 保证输入空间对齐。</p>
+          <p style="margin-top:8px;font-size:13px;color:var(--muted)">作者明确说明：这里没用 GRPO 系（ECPO/GBPO），因为它们在电商搜索里容易生成大量不相关 SID。</p>
+        </div>
+
+        <div class="card">
+          <span class="num">第 4 层 · 优化</span>
+          <h3>listwise DPO ＋ NLL 混合</h3>
+          <div class="eq" style="font-size:12px">
+𝓛 = −𝔼[ log σ( log Σ<sub>l</sub> exp( <b>rw<sub>Δ</sub></b>·max(0, r̂(x,i<sub>w</sub>) − r̂(x,i<sub>l</sub>) − δ) ) )
+&nbsp;&nbsp;&nbsp;&nbsp;+ <i>α·log π<sub>θ</sub>(i<sub>w</sub>|x)</i> ]
+          </div>
+          <p style="margin-top:10px">一个正样本对多个负样本；<code>rw<sub>Δ</sub> = 1/(r(q,i⁺) − r(q,i⁻))</code>，
+             <strong>偏好差距越小，权重越大</strong>，逼模型去分辨细微差别。后半段的 NLL 项防止对齐把 SFT 学到的东西冲掉。</p>
+        </div>
+
+        <div class="note">
+          <strong>两阶段的用意</strong>：先用奖励模型重排的样本训练，把线上精排（上千特征、更大模型）的排序能力蒸过来；
+          但奖励模型本身是拿 MCA 日志训的，天花板就在那儿。所以第二阶段改用<strong>纯真实用户交互</strong>继续训，才有机会超过 MCA。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-part="V1">
+  <div class="wrap stack">
+    <div>
+      <div class="eyebrow"><b>V1 结果</b><span class="dot"></span>它真的上线了</div>
+      <h2>纯生成模型打平整条链路，加奖励重排后全面超越</h2>
+    </div>
+
+    <div class="metrics">
+      <div class="metric"><div class="v up">+1.67%</div><div class="k">商品 CTR</div></div>
+      <div class="metric"><div class="v up">+3.14%</div><div class="k">PV CTR</div></div>
+      <div class="metric"><div class="v up">+2.40%</div><div class="k">买家数</div></div>
+      <div class="metric"><div class="v up">+3.22%</div><div class="k">订单量</div></div>
+      <div class="metric"><div class="v" style="color:var(--rq)">27.32%</div><div class="k">MFU（原 3.26%）</div></div>
+      <div class="metric"><div class="v" style="color:var(--rq)">−75.4%</div><div class="k">运营成本</div></div>
+    </div>
+
+    <div class="grid2">
+      <div>
+        <div class="tw">
+          <table>
+            <thead><tr><th>线上 A/B（对比 MCA）</th><th>商品CTR</th><th>PV CTR</th><th>买家</th><th>订单</th></tr></thead>
+            <tbody>
+              <tr class="dim"><td>MCA 去掉精排</td><td class="down">−9.97%</td><td class="down">−20.33%</td><td class="down">−28.78%</td><td class="down">−39.14%</td></tr>
+              <tr class="dim"><td>OneSearch¹ 纯生成</td><td>−1.10%</td><td>−2.06%</td><td>+1.27%</td><td>−2.22%</td></tr>
+              <tr><td>OneSearch² 纯生成</td><td class="up">+1.45%</td><td class="up">+1.40%</td><td>−0.58%</td><td>−0.69%</td></tr>
+              <tr class="hl"><td>OneSearch²<sub>RM</sub> 全量</td><td class="up best">+1.67%</td><td class="up best">+3.14%</td><td class="up best">+2.40%</td><td class="up best">+3.22%</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p style="font-size:12.5px;color:var(--muted);margin-top:8px">
+          灰字行为 P&gt;0.05（未显著）。V1 与 V2 的差别是后者加了 RQ-OPQ 和隐式长序列。
+        </p>
+      </div>
+
+      <div class="stack">
+        <div class="insight">
+          <span class="tag">最有说服力的一行</span>
+          <p>把 MCA 的精排整级摘掉，订单量 <strong>−39.14%</strong>。而纯生成的 OneSearch 只有个位数波动 ——
+             这说明这一个模型确实<strong>同时干了召回和精排两件事</strong>，而不是「只是一个还不错的召回源」。</p>
+        </div>
+        <div class="card">
+          <span class="num">增益从哪来</span>
+          <h3>普涨，且长尾受益更多</h3>
+          <ul class="tight">
+            <li>Top 30 行业里 <strong>28 个上涨</strong>，平均 +2.49%</li>
+            <li>头部 / 腰部 / 长尾 query 分别 +1.25% / +2.27% / +1.33%</li>
+            <li>冷启动商品 +3.31%，冷启动用户 +2.50% —— 都高于各自的热门段</li>
+            <li>人工评测：页面好评率 +1.03%，商品质量 +2.12%，相关性 +1.87%</li>
+          </ul>
+        </div>
+        <div class="note">
+          部署范围：详情页搜索<strong>全量</strong>，商城搜索 50%，主页电商搜索 20%。日均服务千万级 PV。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════ V2 ══════════════════ -->
+<section class="slide" data-part="V2">
+  <div class="wrap stack">
+    <div>
+      <div class="eyebrow"><b>OneSearch V2</b><span class="dot"></span>V1 撞到的墙</div>
+      <h2>三个瓶颈，恰好是「理解不够深」的三种形态</h2>
+    </div>
+
+    <div class="grid3">
+      <div class="card">
+        <span class="num">瓶颈 01</span>
+        <h3>复杂 query 理解不足</h3>
+        <p>「室内健身器材」可以是跑步机也可以是哑铃，但绝不是山地车。还有否定式（「缓解疲劳，不要保健品」）和疑问式（「游泳需要准备什么」）。</p>
+        <p style="margin-top:9px"><strong>V1 是单次前向直出</strong>，虽然 SFT Stage 1 有类目监督，但对这种歧义 query 依然只能做浅层匹配。</p>
+        <p style="margin-top:9px;color:var(--bad);font-weight:600;font-size:13.5px">这类 query 占 1/3 PV，却只贡献 8% 转化。</p>
+      </div>
+      <div class="card">
+        <span class="num">瓶颈 02</span>
+        <h3>个性化意图推理不足</h3>
+        <p>V1 靠周期性更新拟合历史共现，本质是 log-fitting。用户搜「当季鲜花」，模型应该先推理当前季节、什么在开、再避开用户过敏的品种 —— 哪怕那个品种历史转化很高。</p>
+        <p style="margin-top:9px">LLM 用显式 CoT 能做到，但<strong>多生成的 token 在搜索的延迟预算里是不可接受的</strong>。</p>
+      </div>
+      <div class="card">
+        <span class="num">瓶颈 03</span>
+        <h3>奖励系统脆弱且有分布偏差</h3>
+        <p>奖励模型是拿历史日志训的，采样只覆盖一小撮用户，容易 reward hacking，也跟不上新出现的 query 和意图。</p>
+        <p style="margin-top:9px">结果就是<strong>过拟合到狭窄的历史偏好</strong>，反过来强化了信息茧房和长尾稀疏 —— 这正是当初要摆脱 MCA 的毛病。</p>
+      </div>
+    </div>
+
+    <div class="insight">
+      <span class="tag">V2 的三个回应</span>
+      <p>
+        瓶颈 01 → <strong>思维增强的复杂 query 理解</strong>（关键词式 CoT）<br>
+        瓶颈 02 → <strong>推理内化的自蒸馏</strong>（把 CoT 塞进权重，推理时零成本）<br>
+        瓶颈 03 → <strong>行为反馈偏好对齐</strong>（扔掉独立奖励模型，复合奖励 + TPMA-GRPO）
+      </p>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-part="V2">
+  <div class="wrap stack">
+    <div>
+      <div class="eyebrow"><b>V2 · 前置实验</b><span class="dot"></span>一个值得记住的负面结论</div>
+      <h2>多模态 SID 打不过单模态</h2>
+      <p class="sub">商品明明有图有视频，为什么把它们编码进去反而更差？</p>
+    </div>
+
+    <div class="grid2">
+      <div>
+        <div class="tw">
+          <table>
+            <thead><tr><th>编码方式</th><th>模型</th><th>参数</th><th>ICR</th><th>Recall</th><th>MRR</th></tr></thead>
+            <tbody>
+              <tr><td>单模态</td><td>bge-base</td><td>109M</td><td>96.88%</td><td>0.2445</td><td>0.1013</td></tr>
+              <tr><td>单模态</td><td>qwen3</td><td>0.6B</td><td>97.56%</td><td>0.2468</td><td>0.1025</td></tr>
+              <tr class="dim"><td>多模态</td><td>uniecs</td><td>200M</td><td>94.62%</td><td>0.2368</td><td>0.1007</td></tr>
+              <tr class="dim"><td>多模态</td><td>bge-vl</td><td>149M</td><td>94.46%</td><td>0.2364</td><td>0.1009</td></tr>
+              <tr class="dim"><td>多模态</td><td>qwen3-vl</td><td>2B</td><td>95.27%</td><td>0.2389</td><td>0.1012</td></tr>
+              <tr class="dim"><td>多模态</td><td>CLIP</td><td>188M</td><td>94.16%</td><td>0.2358</td><td>0.1003</td></tr>
+              <tr class="hl"><td>KHQE</td><td>bge + 关键词</td><td>109M</td><td class="best">99.50%</td><td class="best">0.2542</td><td class="best">0.1085</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p style="font-size:12.5px;color:var(--muted);margin-top:8px">
+          109M 的 bge-base 打赢 2B 的 qwen3-vl。分开编码再拼接的策略表现最差。
+        </p>
+      </div>
+
+      <div class="stack">
+        <div class="card">
+          <span class="num">原因</span>
+          <h3>多模态引入的是噪声，不是信息</h3>
+          <ul class="tight">
+            <li><strong>多张图会给出互斥属性</strong> —— 同一条裙子的不同配色图，编码器不知道该信哪个</li>
+            <li><strong>冗余属性带来额外偏置</strong> —— T恤有几颗扣子、扣子在哪，模型认真学了，但这跟 query 毫无关系</li>
+            <li><strong>跨模态表示鸿沟</strong> —— query 天然是纯文本，硬拉到多模态空间反而加大了 query 和商品的距离</li>
+          </ul>
+        </div>
+        <div class="insight">
+          <span class="tag">V1 的做法其实早就答对了</span>
+          <p>KHQE 的路线是<strong>先用 Qwen-VL 把多模态信息「翻译」成核心关键词，再统一在文本空间编码</strong>。
+             这等于在进入表示空间之前就完成了降噪和对齐。</p>
+          <p>附带的好处是编码器小（109M），能对用户实时输入的 query 做在线编码 —— 大模型做不到这一点。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-part="V2">
+  <div class="wrap stack">
+    <div>
+      <div class="eyebrow"><b>V2 · 创新 1</b><span class="dot"></span>思维增强的 query 理解</div>
+      <h2>关键词式 CoT：只要结论，不要过程</h2>
+      <p class="sub">完整 CoT 又长又啰嗦，小模型生成不动，而且电商场景其实只关心那几个词。</p>
+    </div>
+
+    <div class="figbox">
+      <figure>
+        <svg viewBox="0 0 900 200" role="img" aria-label="三步关键词 CoT 流水线：query 分析、关键词抽取、偏好校准，产出用于训练的元组">
+          <defs>
+            <marker id="a5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <polygon points="0,0 10,5 0,10" fill="var(--v2)"/>
+            </marker>
+          </defs>
+
+          <rect x="0" y="42" width="228" height="104" rx="7" fill="none" stroke="var(--v2)" stroke-width="1.4"/>
+          <text x="16" y="28" font-size="10.5" fill="var(--muted)" font-family="monospace">STEP 1</text>
+          <text x="16" y="66" font-size="12" fill="var(--v2)" font-weight="600">Query 分析</text>
+          <text x="16" y="88" font-size="10.5" fill="currentColor">i. 意图识别（商品/店铺/主播）</text>
+          <text x="16" y="106" font-size="10.5" fill="currentColor">ii. 类目匹配（由粗到细）</text>
+          <text x="16" y="124" font-size="10.5" fill="currentColor">iii. 属性抽取（类型 + 取值）</text>
+          <text x="16" y="140" font-size="10.5" fill="currentColor">iv. 选题推荐（可能满足的候选）</text>
+
+          <line x1="232" y1="94" x2="268" y2="94" stroke="var(--v2)" stroke-width="1.4" marker-end="url(#a5)"/>
+
+          <rect x="272" y="42" width="228" height="104" rx="7" fill="none" stroke="var(--v2)" stroke-width="1.4"/>
+          <text x="288" y="28" font-size="10.5" fill="var(--muted)" font-family="monospace">STEP 2</text>
+          <text x="288" y="66" font-size="12" fill="var(--v2)" font-weight="600">关键词抽取</text>
+          <text x="288" y="88" font-size="10.5" fill="currentColor">受意图 / 类目 / 属性一致性约束</text>
+          <text x="288" y="106" font-size="10.5" fill="currentColor">同义词合并 · 冗余词删除</text>
+          <text x="288" y="124" font-size="10.5" fill="currentColor">按商品热度降序排列</text>
+          <text x="288" y="140" font-size="10" fill="var(--muted)">非商品意图 → 交给专用引擎，流程终止</text>
+
+          <line x1="504" y1="94" x2="540" y2="94" stroke="var(--v2)" stroke-width="1.4" marker-end="url(#a5)"/>
+
+          <rect x="544" y="42" width="228" height="104" rx="7" fill="var(--v2-soft)" stroke="var(--v2)" stroke-width="1.6"/>
+          <text x="560" y="28" font-size="10.5" fill="var(--muted)" font-family="monospace">STEP 3</text>
+          <text x="560" y="66" font-size="12" fill="var(--v2)" font-weight="600">偏好校准</text>
+          <text x="560" y="88" font-size="10.5" fill="currentColor">带入用户画像 + 历史行为</text>
+          <text x="560" y="106" font-size="10.5" fill="currentColor">过滤或补充关键词</text>
+          <text x="560" y="124" font-size="10.5" fill="currentColor">训练时注入本次 session 交互商品</text>
+          <text x="560" y="140" font-size="10" fill="var(--muted)">保证 ground-truth 商品的关键词在集合里</text>
+
+          <line x1="776" y1="94" x2="812" y2="94" stroke="var(--v2)" stroke-width="1.4" marker-end="url(#a5)"/>
+          <text x="820" y="82" font-size="10.5" fill="currentColor" font-family="monospace">⟨q, kw⟩</text>
+          <text x="820" y="100" font-size="10.5" fill="currentColor" font-family="monospace">⟨q, u, kw⟩</text>
+          <text x="820" y="118" font-size="9.5" fill="var(--muted)">训练语料</text>
+
+          <line x1="0" y1="172" x2="880" y2="172" stroke="var(--line)" stroke-width="1"/>
+          <text x="0" y="190" font-size="10.5" fill="var(--muted)">生成用 Qwen3-32B，全流程离线异步；同一 query / ⟨query,用户⟩ 命中缓存直接复用 → 不占用在线延迟</text>
+        </svg>
+        <figcaption>产出的元组作为 4 个新任务加进 SFT Stage 1（语义对齐阶段），让模型在「认字」的同时也学会 query 该被怎么理解。</figcaption>
+      </figure>
+    </div>
+
+    <div class="grid2">
+      <div class="card v2">
+        <span class="num">4 个新 CoT 任务</span>
+        <h3>符号层和文本层都要学</h3>
+        <ul class="tight" style="font-size:13.5px">
+          <li><code>query → keywords</code></li>
+          <li><code>query_sid → keyword_sid</code></li>
+          <li><code>query + 用户 → 个性化 keywords</code></li>
+          <li><code>query_sid + 用户 → 个性化 keyword_sid</code></li>
+        </ul>
+        <div style="margin-top:14px;padding:12px;background:var(--surface-2);border-radius:8px;font-size:13px">
+          <div style="color:var(--muted);font-family:var(--f-mono);font-size:11px;margin-bottom:6px">实际样例</div>
+          query <code>&lt;cleanfit&gt;</code> + 「18-23 岁男性」+ 最近搜过 <code>哈灵顿夹克</code> <code>国潮穿搭</code><br>
+          <span style="color:var(--v2);font-weight:600">→ cleanfit穿搭, 工装牛仔裤, 美式短袖T恤, 微喇牛仔裤男, 冰蓝牛仔裤</span>
+        </div>
+      </div>
+      <div class="note" style="align-self:center">
+        注意这个设计的巧妙之处：关键词既是<strong>训练语料</strong>（教模型理解 query），
+        又是<strong>推理时可选的输入增强</strong>（RAG），
+        还是后面自蒸馏里<strong>教师端的特权信息</strong>。一份数据，三种用途。
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-part="V2">
+  <div class="wrap stack">
+    <div>
+      <div class="eyebrow"><b>V2 · 关键转折</b><span class="dot"></span>一个必须绕开的坑</div>
+      <h2>让模型「说出」思考过程，性能直接腰斩</h2>
+      <p class="sub">最自然的想法是：先生成推理关键词，再生成商品 SID。实验结果是灾难性的。</p>
+    </div>
+
+    <div class="grid2">
+      <div>
+        <div class="tw">
+          <table>
+            <thead><tr><th>方案</th><th>成交 HR@10</th><th>成交 MRR@10</th><th>点击 HR@10</th></tr></thead>
+            <tbody>
+              <tr><td>baseline（V1）</td><td>0.2046</td><td>0.0985</td><td>0.2231</td></tr>
+              <tr><td>＋ CoT 训练任务</td><td>0.2094</td><td>0.1008</td><td>0.2266</td></tr>
+              <tr style="background:color-mix(in srgb, var(--bad) 10%, transparent)">
+                <td style="color:var(--bad);font-weight:650">＋ 显式生成 CoT</td>
+                <td class="down">0.0898</td><td class="down">0.0189</td><td class="down">0.1013</td></tr>
+              <tr class="hl"><td>＋ 关键词作为输入（RAG）</td><td class="best">0.2139</td><td class="best">0.1011</td><td class="best">0.2327</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p style="font-size:12.5px;color:var(--muted);margin-top:8px">
+          显式生成 CoT 把 HR@10 从 0.2094 打到 0.0898 —— 比什么都不做还差一半以上。
+        </p>
+      </div>
+
+      <div class="stack">
+        <div class="card">
+          <span class="num">为什么会崩</span>
+          <h3>SID 和文本是两种异质符号</h3>
+          <p>离散 SID（<code>&lt;a_97&gt;</code>）和自然语言关键词（「工装牛仔裤」）在表示上根本不同源。
+             让一个小模型在同一个自回归序列里先产出一种、再产出另一种，等于要它在两个词表之间来回切换。</p>
+          <p>作者还引了另一项研究佐证：<strong>训练时插入显式推理步骤，本身就可能损害模型的组合泛化能力</strong>。</p>
+        </div>
+        <div class="insight">
+          <span class="tag">于是问题被重新定义了</span>
+          <p>关键词<strong>放在输入端</strong>有用（0.2094 → 0.2139），放在输出端有害。<br>
+             但放在输入端意味着每个请求都要额外调一次 query 理解模块 —— 线上延迟扛不住。</p>
+          <p style="margin-top:10px;font-weight:600;color:var(--v2)">
+            能不能保住推理带来的收益，却不付推理的代价？<br>这就是自蒸馏要回答的问题。</p>
+        </div>
+        <div class="note">
+          还有一个更隐蔽的问题：关键词集合的<strong>覆盖面是有限的</strong>。
+          用户搜「酒店必备」，如果关键词只有毛巾、牙刷、剃须刀，模型就永远想不到一次性拖鞋。
+          把推理内化，反而能挣脱关键词集合的边界。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-part="V2">
+  <div class="wrap stack">
+    <div>
+      <div class="eyebrow"><b>V2 · 创新 2</b><span class="dot"></span>全篇最漂亮的一招</div>
+      <h2>推理内化的自蒸馏：同一套权重，两种视野</h2>
+      <p class="sub">不加参数、不加特殊 token、不改架构、推理时不多生成一个字。</p>
+    </div>
+
+    <div class="figbox">
+      <figure>
+        <svg viewBox="0 0 900 260" role="img" aria-label="自蒸馏信息不对称结构：教师输入含关键词、学生输入不含，两者共享同一套权重，通过 KL 散度对齐输出分布">
+          <defs>
+            <marker id="a6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <polygon points="0,0 10,5 0,10" fill="currentColor"/>
+            </marker>
+            <marker id="a6v" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <polygon points="0,0 10,5 0,10" fill="var(--v2)"/>
+            </marker>
+          </defs>
+
+          <!-- teacher input -->
+          <rect x="0" y="24" width="250" height="62" rx="6" fill="var(--v2-soft)" stroke="var(--v2)" stroke-width="1.4"/>
+          <text x="14" y="14" font-size="10.5" fill="var(--v2)" font-family="monospace" font-weight="700">TEACHER 视野</text>
+          <text x="14" y="46" font-size="10.5" fill="currentColor" font-family="monospace">uid, q, SID_q, Seq_q,</text>
+          <text x="14" y="63" font-size="10.5" fill="currentColor" font-family="monospace">Seq_short, Seq_long^emb,</text>
+          <text x="14" y="80" font-size="11" fill="var(--v2)" font-family="monospace" font-weight="700">kw ← 关键词 CoT（特权信息）</text>
+
+          <!-- student input -->
+          <rect x="0" y="152" width="250" height="62" rx="6" fill="none" stroke="currentColor" stroke-width="1.4"/>
+          <text x="14" y="142" font-size="10.5" fill="currentColor" font-family="monospace" font-weight="700">STUDENT 视野</text>
+          <text x="14" y="174" font-size="10.5" fill="currentColor" font-family="monospace">uid, q, SID_q, Seq_q,</text>
+          <text x="14" y="191" font-size="10.5" fill="currentColor" font-family="monospace">Seq_short, Seq_long^emb</text>
+          <text x="14" y="208" font-size="10.5" fill="var(--muted)" font-family="monospace">（没有关键词）</text>
+
+          <!-- shared model -->
+          <rect x="322" y="72" width="146" height="94" rx="8" fill="var(--surface-2)" stroke="currentColor" stroke-width="1.8"/>
+          <text x="395" y="106" font-size="12.5" text-anchor="middle" fill="currentColor" font-weight="700">𝓜<tspan font-size="10">θ</tspan></text>
+          <text x="395" y="126" font-size="10.5" text-anchor="middle" fill="var(--muted)">同一套权重</text>
+          <text x="395" y="143" font-size="10.5" text-anchor="middle" fill="var(--muted)">显存减半</text>
+
+          <line x1="252" y1="55" x2="318" y2="88" stroke="var(--v2)" stroke-width="1.4" marker-end="url(#a6v)"/>
+          <line x1="252" y1="183" x2="318" y2="150" stroke="currentColor" stroke-width="1.4" marker-end="url(#a6)"/>
+
+          <text x="272" y="60" font-size="9.5" fill="var(--muted)">no_grad</text>
+          <text x="272" y="176" font-size="9.5" fill="var(--muted)">有梯度</text>
+
+          <!-- logits -->
+          <rect x="520" y="24" width="128" height="52" rx="6" fill="var(--v2-soft)" stroke="var(--v2)" stroke-width="1.3"/>
+          <text x="584" y="46" font-size="11.5" text-anchor="middle" fill="var(--v2)" font-family="monospace">z⁽ᵀ⁾</text>
+          <text x="584" y="64" font-size="10" text-anchor="middle" fill="var(--muted)">detach</text>
+
+          <rect x="520" y="162" width="128" height="52" rx="6" fill="none" stroke="currentColor" stroke-width="1.3"/>
+          <text x="584" y="184" font-size="11.5" text-anchor="middle" fill="currentColor" font-family="monospace">z⁽ˢ⁾</text>
+          <text x="584" y="202" font-size="10" text-anchor="middle" fill="var(--muted)">反传路径</text>
+
+          <line x1="470" y1="96" x2="516" y2="60" stroke="var(--v2)" stroke-width="1.3" marker-end="url(#a6v)"/>
+          <line x1="470" y1="142" x2="516" y2="178" stroke="currentColor" stroke-width="1.3" marker-end="url(#a6)"/>
+
+          <!-- KL -->
+          <line x1="584" y1="80" x2="584" y2="158" stroke="var(--v2)" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#a6v)"/>
+          <rect x="662" y="98" width="120" height="42" rx="6" fill="var(--v2-soft)" stroke="var(--v2)" stroke-width="1.4"/>
+          <text x="722" y="117" font-size="11.5" text-anchor="middle" fill="var(--v2)" font-weight="700">KL(T ‖ S)</text>
+          <text x="722" y="133" font-size="10" text-anchor="middle" fill="var(--muted)">逐 token 分布对齐</text>
+          <line x1="596" y1="119" x2="658" y2="119" stroke="var(--v2)" stroke-width="1.3" marker-end="url(#a6v)"/>
+
+          <text x="800" y="112" font-size="10.5" fill="currentColor">τ = 1.0</text>
+          <text x="800" y="130" font-size="10.5" fill="currentColor">α_KL = 0.1</text>
+
+          <line x1="0" y1="236" x2="880" y2="236" stroke="var(--line)" stroke-width="1"/>
+          <text x="0" y="254" font-size="10.5" fill="var(--muted)">因为 θ 共享，z⁽ᵀ⁾ 与 z⁽ˢ⁾ 的全部差异都只来自「有没有关键词」这一件事 —— 这个差值就是要蒸馏的推理信号</text>
+        </svg>
+        <figcaption>信息不对称来自输入而非参数：教师和学生是同一个模型，只是一个多看了关键词。学生被迫在信息更少的条件下产出同样自信的分布。</figcaption>
+      </figure>
+    </div>
+
+    <div class="grid2">
+      <div class="card v2">
+        <span class="num">损失函数</span>
+        <h3>只有 KL，没有别的花样</h3>
+        <div class="eq" style="font-size:13px">
+𝓛<sub>KL</sub> = <span class="c">1/|𝒱|</span> Σ<sub>t∈𝒱</sub> KL( softmax(z<sub>t</sub><sup>(T)</sup>/τ) ‖ softmax(z<sub>t</sub><sup>(S)</sup>/τ) ) · τ²
+
+𝓛<sub>base</sub> = 𝓛<sub>CE</sub>(z<sup>(S)</sup>, y) + <u>α<sub>KL</sub></u> · 𝓛<sub>KL</sub>
+        </div>
+        <p style="margin-top:12px;font-size:13.5px">
+          𝒱 是有效（非 padding）token 位置集合。教师 logits 从计算图 detach，教师前向在 <code>torch.no_grad()</code> 下跑，
+          <strong>只有学生这条路径累积梯度</strong>。
+        </p>
+        <p style="margin-top:9px;font-size:13px;color:var(--muted)">
+          代码细节：教师和学生序列长度不同（prompt 长度不一样），但输出 token 完全一致，
+          所以实现里对有效位置做<strong>尾部对齐</strong>再算 KL。见 <code>joint_sdft_trainer.py</code>。
+        </p>
+      </div>
+
+      <div class="stack">
+        <div>
+          <div class="tw">
+            <table>
+              <thead><tr><th>配置</th><th>成交 HR@10</th><th>成交 MRR@10</th><th>点击 HR@10</th></tr></thead>
+              <tbody>
+                <tr><td>Base (S)　无关键词训练+推理</td><td>0.2094</td><td>0.1008</td><td>0.2266</td></tr>
+                <tr><td>Base (T)　有关键词训练+推理</td><td>0.2139</td><td>0.1011</td><td>0.2327</td></tr>
+                <tr><td>Self-Distill (T)　推理时给关键词</td><td>0.2155</td><td>0.1015</td><td>0.2397</td></tr>
+                <tr class="hl"><td>Self-Distill (S)　<strong>推理时不给</strong></td><td class="best">0.2163</td><td class="best">0.1017</td><td class="best">0.2398</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="insight">
+          <span class="tag">反直觉 · 学生超过了老师</span>
+          <p><strong>Self-Distill (S) 从未在推理时见过关键词，却比 Base (T) 更强，甚至略胜 Self-Distill (T)。</strong></p>
+          <p>作者的解释：自蒸馏模式下师生共享参数，而梯度<strong>完全由学生侧的损失驱动</strong>，其中的 KL 约束在逼模型「从残缺输入里也要预测准」。
+             于是优化方向天然偏向<strong>信息不足条件下的鲁棒性</strong> —— 最终泛化能力反而超过了带关键词的教师。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-part="V2">
+  <div class="wrap stack">
+    <div>
+      <div class="eyebrow"><b>V2 · 创新 2 续</b><span class="dot"></span>让不对称训练稳下来</div>
+      <h2>三件正则套装：R-Drop + FGM + Focal Loss</h2>
+      <p class="sub">强迫学生在更少信息下给出同样自信的预测，代价是 loss surface 在「无关键词输入」附近变得陡峭 —— 输入稍动，输出剧变。</p>
+    </div>
+
+    <div class="grid3">
+      <div class="card">
+        <span class="num">失效模式 1 · 输出不稳</span>
+        <h3>R-Drop</h3>
+        <p>同一个输入用两组独立 dropout mask 走两遍，要求两次输出分布一致：</p>
+        <div class="eq" style="font-size:12.5px;margin-top:10px">
+𝓛<sub>R-Drop</sub> = ½[ KL(P₁‖P₂) + KL(P₂‖P₁) ]
+        </div>
+        <p style="margin-top:10px">对称惩罚，逼模型别依赖那些一 dropout 就断的脆弱内部通路。<code>α_R = 0.5</code></p>
+      </div>
+      <div class="card">
+        <span class="num">失效模式 2 · 输入不稳</span>
+        <h3>FGM 对抗扰动</h3>
+        <p>第一次反传后，沿梯度方向扰动共享 embedding 层：</p>
+        <div class="eq" style="font-size:12.5px;margin-top:10px">
+r<sub>adv</sub> = ε · ∇<sub>e</sub>𝓛<sub>base</sub> / ‖∇<sub>e</sub>𝓛<sub>base</sub>‖₂
+        </div>
+        <p style="margin-top:10px">在 <code>e + r_adv</code> 上再走一次前向反向，梯度累加后还原 e。把每个输入周围的 loss 曲面抹平。<code>ε = 0.6</code></p>
+      </div>
+      <div class="card">
+        <span class="num">失效模式 3 · 类别失衡</span>
+        <h3>Focal Loss</h3>
+        <p>SID 词表天然长尾 —— 少数热门 SID 占掉大部分样本。用 focal loss 替换标准交叉熵，压低易分样本的权重。</p>
+        <p style="margin-top:10px"><code>α = 2, γ = 3</code></p>
+      </div>
+    </div>
+
+    <div class="eq">
+𝓛<sub>SDFT</sub> = 𝓛<sub>CE</sub> + <u>α<sub>KL</sub></u>·𝓛<sub>KL</sub> + <b>α<sub>R</sub></b>·𝓛<sub>R-Drop</sub> + <i>𝓛<sub>adv</sub></i>
+<span class="c">// 𝓛_adv 是扰动输入上的 CE + 加权蒸馏损失（复用同一个 α_KL）</span>
+    </div>
+
+    <div class="grid2">
+      <div class="tw">
+        <table>
+          <thead><tr><th>累加消融</th><th>成交 HR@10</th><th>成交 MRR@10</th><th>点击 HR@10</th></tr></thead>
+          <tbody>
+            <tr><td>OneSearch（V1 基线）</td><td>0.2046</td><td>0.0985</td><td>0.2231</td></tr>
+            <tr><td>＋ CoT 任务</td><td>0.2094</td><td>0.1008</td><td>0.2266</td></tr>
+            <tr><td>＋ 自蒸馏</td><td>0.2163</td><td>0.1017</td><td>0.2398</td></tr>
+            <tr><td>＋ R-Drop</td><td>0.2168</td><td>0.1045</td><td>0.2398</td></tr>
+            <tr><td>＋ FGM</td><td>0.2180</td><td>0.1047</td><td>0.2422</td></tr>
+            <tr class="hl"><td>＋ Focal Loss</td><td class="best">0.2214</td><td class="best">0.1048</td><td class="best">0.2471</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="insight" style="align-self:center">
+        <span class="tag">反直觉 · 1+1+1 &gt; 3</span>
+        <p>三个正则单独加到自蒸馏模型上，收益都很小（0.2163 → 0.2168 / 0.2168 / 0.2161，focal 甚至略降）。
+           但<strong>三个一起上，效果超过各自贡献之和</strong>。</p>
+        <p>作者的解读：信息不对称造成的不稳定<strong>同时体现在三个维度</strong> —— 输入表示脆弱、输出预测抖动、类别分布失衡。
+           三个手段各治一个，缺一个就有短板。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-part="V2">
+  <div class="wrap stack">
+    <div>
+      <div class="eyebrow"><b>V2 · 方法论</b><span class="dot"></span>与潜推理路线的对比</div>
+      <h2>为什么不用 Coconut / CODI 那套潜 token？</h2>
+      <p class="sub">「把推理压进连续向量」是当前主流的潜推理思路。V2 走了另一条路，并给出了实验依据。</p>
+    </div>
+
+    <div class="grid2">
+      <div>
+        <div class="tw">
+          <table>
+            <thead><tr><th>内化策略</th><th>成交 HR@10</th><th>成交 MRR@10</th><th>点击 HR@10</th></tr></thead>
+            <tbody>
+              <tr><td>baseline</td><td>0.2094</td><td>0.1008</td><td>0.2266</td></tr>
+              <tr class="dim"><td>(i) special-token 蒸馏</td><td>0.2092</td><td>0.0999</td><td>0.2335</td></tr>
+              <tr class="dim"><td>(ii) CODI 潜向量对齐</td><td>0.2105</td><td>0.0985</td><td>0.2269</td></tr>
+              <tr class="dim"><td>(iii) EMA-mode 教师</td><td>0.2097</td><td>0.1009</td><td>0.2317</td></tr>
+              <tr><td>(iv) joint-mode 联合训练</td><td>0.2156</td><td>0.1016</td><td>0.2348</td></tr>
+              <tr class="hl"><td>self-mode（本文）</td><td class="best">0.2163</td><td class="best">0.1017</td><td class="best">0.2398</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p style="font-size:12.5px;color:var(--muted);margin-top:8px">
+          CODI 再加投影层（0.2092）、再叠加 KL 蒸馏（0.2084）都没救回来，反而更差。
+        </p>
+      </div>
+
+      <div class="stack">
+        <div class="card">
+          <span class="num">原因 1</span>
+          <h3>监督粒度不同</h3>
+          <p>自蒸馏在<strong>每个 SID token 位置</strong>都给学生一份教师的完整输出分布 —— 直接告诉它「关键词把哪些候选码的概率抬高了、哪些压低了」。</p>
+          <p>CODI 只在<strong>单个蒸馏 token</strong> 上做隐状态的 L1 回归，其余 SID 位置拿不到任何推理指导。加投影层也补不上，说明短板在监督形式本身，不在模型容量。</p>
+        </div>
+        <div class="card">
+          <span class="num">原因 2</span>
+          <h3>两个损失互相打架</h3>
+          <p>L1 要把隐状态拉向教师的逐层几何结构，KL 要塑造输出分布。<strong>最满足前者的表示，未必最适合后者</strong>。</p>
+          <p>纯 KL 的写法绕开了这个张力 —— 内部表示怎么组织交给模型自己决定，只约束最终该输出什么。</p>
+        </div>
+        <div class="note">
+          工程上还有个朴素理由：self-mode <strong>不需要改架构、不需要额外参数、不需要特殊解码</strong>。
+          对一个每天扛千万级 PV 的线上系统，这一条的分量不比精度低。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-part="V2">
+  <div class="wrap stack">
+    <div>
+      <div class="eyebrow"><b>V2 · 创新 3</b><span class="dot"></span>行为反馈偏好对齐</div>
+      <h2>扔掉独立奖励模型，直接用真实交互当奖励</h2>
+      <p class="sub">V1 的奖励模型是拿历史日志训的，采样偏差和 reward hacking 是结构性的。V2 干脆不要它了。</p>
+    </div>
+
+    <div class="grid2">
+      <div class="stack">
+        <div class="card v2">
+          <span class="num">复合奖励</span>
+          <h3>三个信号相加</h3>
+          <div class="eq" style="font-size:13.5px;margin-bottom:14px">
+R<sub>item</sub>(o<sub>i</sub>) = <b>R<sub>C&amp;O</sub></b> + <i>R<sub>CTR</sub></i> + <u>R<sub>Rel</sub></u>
+          </div>
+          <ul class="tight" style="font-size:13.5px">
+            <li><b style="color:var(--rq)">R<sub>C&amp;O</sub></b> 点击/成交分：命中成交集 → V<sub>o</sub>，命中点击集 → V<sub>c</sub>，否则 0。层级化地表达「购买 &gt; 点击」</li>
+            <li><i style="color:var(--opq)">R<sub>CTR</sub></i> 后验转化分：沿用 V1 的校准 CTR，<strong>裁剪到 (0,1)</strong>，防止高 CTR 但不相关的商品霸榜</li>
+            <li><u style="color:var(--v2)">R<sub>Rel</sub></u> 相关性分：复用现有相关性系统的四档 —— 3 优秀 / 2 相关 / 1 不匹配 / 0 无关</li>
+          </ul>
+          <p style="margin-top:12px;font-size:13.5px">
+            <strong>加法而非乘法</strong>，是为了避开奖励稀疏问题，同时让相关性和转化在同一个尺度上可调。
+          </p>
+        </div>
+        <div class="note">
+          代码里还有一个论文正文没细讲的<strong>辅助奖励</strong>：<code>format_reward</code> 用正则
+          <code>^&lt;a_\d+&gt;&lt;b_\d+&gt;&lt;c_\d+&gt;&lt;d_\d+&gt;&lt;d_\d+&gt;$</code>
+          校验生成的 SID 格式是否合法，用来约束格式有效性与层次结构。<br><br>
+          <span style="color:var(--ink)">小提示：论文正文写 V<sub>o</sub>, V<sub>c</sub> = 3, 4，而
+          <code>reward.py</code> 里是 <code>v_order=4.0, v_click=3.0</code>。以代码为准 —— 成交权重高于点击才符合设计意图。</span>
+        </div>
+      </div>
+
+      <div class="stack">
+        <div class="card">
+          <span class="num">为什么电商搜索不能照抄 OneRec-V2</span>
+          <h3>反馈结构本身就不同</h3>
+          <p><strong>(a) 行为是层级递进的。</strong>短视频里点赞、关注、转发、评论可以同时发生；电商里必须先点击、才能加购、才能购买。所以不同信号之间的偏好强度差异更清晰、也更该被区分对待。</p>
+          <p><strong>(b) 相关性是硬约束。</strong>用户对「搜的和出的对不对得上」极其敏感，相关性必须和转化<strong>联合优化</strong>，而不是事后过滤。</p>
+        </div>
+        <div class="card">
+          <span class="num">线上编排</span>
+          <h3>DPO 打底，TPMA 收尾</h3>
+          <p>两者优化的是互补的东西：<strong>listwise DPO</strong> 用真实日志拟合用户偏好，<strong>GRPO 系</strong>靠组内相对优化引导模型生成更符合奖励的样本。</p>
+          <p>所以线上先跑 listwise DPO 学基础交互偏好，再用 TPMA 平衡多个奖励目标、提升泛化。</p>
+          <p style="margin-top:9px;font-size:13px;color:var(--muted)">
+            批大小：SFT 512 / DPO 2048 / GRPO 256。RL 阶段做<strong>流式训练</strong>，新 query 和新意图能当天进模型。
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-part="V2">
+  <div class="wrap stack">
+    <div>
+      <div class="eyebrow"><b>TPMA-GRPO</b><span class="dot"></span>V2 第二个核心算法</div>
+      <h2>SID 是有因果层次的，凭什么每个位置分同样的功劳？</h2>
+      <p class="sub">标准 GRPO 给整条序列一个 advantage。但「类目对了、细节错了」和「类目就错了」，是完全不同的两件事。</p>
+    </div>
+
+    <div class="figbox">
+      <figure>
+        <svg viewBox="0 0 900 320" role="img" aria-label="TPMA 逐位置边际优势与前缀门控的计算示例：第三位失配后，后续位置的梯度被门控衰减">
+          <defs>
+            <marker id="a7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <polygon points="0,0 10,5 0,10" fill="currentColor"/>
+            </marker>
+          </defs>
+
+          <text x="0" y="14" font-size="11" fill="var(--muted)" font-family="monospace">位置</text>
+          <text x="150" y="14" font-size="11" text-anchor="middle" fill="var(--muted)" font-family="monospace">l=1</text>
+          <text x="290" y="14" font-size="11" text-anchor="middle" fill="var(--muted)" font-family="monospace">l=2</text>
+          <text x="430" y="14" font-size="11" text-anchor="middle" fill="var(--muted)" font-family="monospace">l=3</text>
+          <text x="570" y="14" font-size="11" text-anchor="middle" fill="var(--muted)" font-family="monospace">l=4</text>
+          <text x="710" y="14" font-size="11" text-anchor="middle" fill="var(--muted)" font-family="monospace">l=5</text>
+
+          <!-- ground truth -->
+          <text x="0" y="44" font-size="11" fill="currentColor">目标 SID</text>
+          <rect x="96" y="26" width="108" height="26" rx="4" fill="var(--rq-wash)" stroke="var(--rq)" stroke-width="1"/><text x="150" y="44" font-size="10.5" text-anchor="middle" fill="var(--rq)" font-family="monospace">a_97</text>
+          <rect x="236" y="26" width="108" height="26" rx="4" fill="var(--rq-wash)" stroke="var(--rq)" stroke-width="1"/><text x="290" y="44" font-size="10.5" text-anchor="middle" fill="var(--rq)" font-family="monospace">b_658</text>
+          <rect x="376" y="26" width="108" height="26" rx="4" fill="var(--rq-wash)" stroke="var(--rq)" stroke-width="1"/><text x="430" y="44" font-size="10.5" text-anchor="middle" fill="var(--rq)" font-family="monospace">c_209</text>
+          <rect x="516" y="26" width="108" height="26" rx="4" fill="var(--opq-wash)" stroke="var(--opq)" stroke-width="1"/><text x="570" y="44" font-size="10.5" text-anchor="middle" fill="var(--opq)" font-family="monospace">d_2</text>
+          <rect x="656" y="26" width="108" height="26" rx="4" fill="var(--opq-wash)" stroke="var(--opq)" stroke-width="1"/><text x="710" y="44" font-size="10.5" text-anchor="middle" fill="var(--opq)" font-family="monospace">d_466</text>
+
+          <!-- rollout -->
+          <text x="0" y="82" font-size="11" fill="currentColor">采样 rollout</text>
+          <rect x="96" y="64" width="108" height="26" rx="4" fill="none" stroke="var(--good)" stroke-width="1.3"/><text x="150" y="82" font-size="10.5" text-anchor="middle" fill="var(--good)" font-family="monospace">a_97 ✓</text>
+          <rect x="236" y="64" width="108" height="26" rx="4" fill="none" stroke="var(--good)" stroke-width="1.3"/><text x="290" y="82" font-size="10.5" text-anchor="middle" fill="var(--good)" font-family="monospace">b_658 ✓</text>
+          <rect x="376" y="64" width="108" height="26" rx="4" fill="none" stroke="var(--bad)" stroke-width="1.5"/><text x="430" y="82" font-size="10.5" text-anchor="middle" fill="var(--bad)" font-family="monospace">c_311 ✗</text>
+          <rect x="516" y="64" width="108" height="26" rx="4" fill="none" stroke="var(--good)" stroke-width="1.3"/><text x="570" y="82" font-size="10.5" text-anchor="middle" fill="var(--good)" font-family="monospace">d_2 ✓</text>
+          <rect x="656" y="64" width="108" height="26" rx="4" fill="none" stroke="var(--good)" stroke-width="1.3"/><text x="710" y="82" font-size="10.5" text-anchor="middle" fill="var(--good)" font-family="monospace">d_466 ✓</text>
+
+          <line x1="0" y1="104" x2="880" y2="104" stroke="var(--line-soft)" stroke-width="1"/>
+
+          <!-- weights -->
+          <text x="0" y="130" font-size="11" fill="currentColor">位置权重 w</text>
+          <text x="0" y="146" font-size="9.5" fill="var(--muted)">[l&lt;3]·2 + [3≤l&lt;L]·1</text>
+          <text x="150" y="134" font-size="14" text-anchor="middle" fill="var(--rq)" font-weight="700" font-family="monospace">2</text>
+          <text x="290" y="134" font-size="14" text-anchor="middle" fill="var(--rq)" font-weight="700" font-family="monospace">2</text>
+          <text x="430" y="134" font-size="14" text-anchor="middle" fill="var(--opq)" font-weight="700" font-family="monospace">1</text>
+          <text x="570" y="134" font-size="14" text-anchor="middle" fill="var(--opq)" font-weight="700" font-family="monospace">1</text>
+          <text x="710" y="134" font-size="14" text-anchor="middle" fill="var(--muted)" font-weight="700" font-family="monospace">0</text>
+
+          <!-- marginal -->
+          <text x="0" y="172" font-size="11" fill="currentColor">边际贡献 ΔR</text>
+          <text x="150" y="176" font-size="14" text-anchor="middle" fill="currentColor" font-weight="700" font-family="monospace">2</text>
+          <text x="290" y="176" font-size="14" text-anchor="middle" fill="currentColor" font-weight="700" font-family="monospace">2</text>
+          <text x="430" y="176" font-size="14" text-anchor="middle" fill="var(--bad)" font-weight="700" font-family="monospace">0</text>
+          <text x="570" y="176" font-size="14" text-anchor="middle" fill="currentColor" font-weight="700" font-family="monospace">1</text>
+          <text x="710" y="176" font-size="14" text-anchor="middle" fill="var(--muted)" font-weight="700" font-family="monospace">0</text>
+
+          <!-- gate -->
+          <text x="0" y="212" font-size="11" fill="currentColor">前缀门控 g</text>
+          <text x="0" y="228" font-size="9.5" fill="var(--muted)">g = R(l−1)/(l−1)</text>
+          <rect x="96" y="196" width="108" height="24" rx="3" fill="var(--rq-wash)"/>
+          <text x="150" y="213" font-size="12" text-anchor="middle" fill="var(--rq)" font-weight="700" font-family="monospace">1.00</text>
+          <rect x="236" y="196" width="108" height="24" rx="3" fill="var(--rq-wash)"/>
+          <text x="290" y="213" font-size="12" text-anchor="middle" fill="var(--rq)" font-weight="700" font-family="monospace">1.00</text>
+          <rect x="376" y="196" width="108" height="24" rx="3" fill="var(--rq-wash)"/>
+          <text x="430" y="213" font-size="12" text-anchor="middle" fill="var(--rq)" font-weight="700" font-family="monospace">1.00</text>
+          <rect x="516" y="196" width="108" height="24" rx="3" fill="var(--opq-wash)"/>
+          <text x="570" y="213" font-size="12" text-anchor="middle" fill="var(--opq)" font-weight="700" font-family="monospace">0.67</text>
+          <rect x="656" y="196" width="108" height="24" rx="3" fill="var(--opq-wash)"/>
+          <text x="710" y="213" font-size="12" text-anchor="middle" fill="var(--opq)" font-weight="700" font-family="monospace">0.75</text>
+
+          <path d="M430 92 Q 470 150 540 194" stroke="var(--bad)" stroke-width="1.3" fill="none" stroke-dasharray="4 3" marker-end="url(#a7)"/>
+          <text x="452" y="252" font-size="10.5" fill="var(--bad)">第 3 位失配 → 后续位置的梯度被自动衰减</text>
+
+          <line x1="0" y1="272" x2="880" y2="272" stroke="var(--line)" stroke-width="1"/>
+          <text x="0" y="292" font-size="10.5" fill="currentColor">前缀全对 → g=1 门全开；前缀全错 → g=0 门全关，下游 token 的梯度被彻底抑制</text>
+          <text x="0" y="310" font-size="10.5" fill="var(--muted)">这天然形成一条课程：先学会生对粗粒度类目，才被允许训练细粒度属性 —— 也正因如此，TPMA 的 loss 里不需要 clip</text>
+        </svg>
+        <figcaption>目标 <code>a_97 b_658 c_209 d_2 d_466</code>、rollout 第 3 位错。ΔR 精确到位置，门控按前缀正确率开合，两者共同实现「粗到细」的信用分配。</figcaption>
+      </figure>
+    </div>
+
+    <div class="grid2">
+      <div class="card v2">
+        <span class="num">公式</span>
+        <h3>三步走</h3>
+        <div class="eq" style="font-size:12.5px">
+<span class="c">① 逐位置组内归一化（只和其他 rollout 的同一位置比）</span>
+Â<sub>i,l</sub> = (ΔR<sub>i,l</sub> − mean<sub>j</sub>ΔR<sub>j,l</sub>) / (std<sub>j</sub>ΔR<sub>j,l</sub> + δ)
+
+<span class="c">② 叠加序列级的商品价值优势</span>
+Â<sup>final</sup><sub>i,l</sub> = Â<sub>i,l</sub> + <u>w<sub>item</sub></u> · Â<sup>item</sup><sub>i</sub>
+
+<span class="c">③ 门控 × 重要性比 × 优势，无 clip</span>
+𝓛<sub>TPMA</sub> = −<span class="c">1/G</span> Σ<sub>i</sub> <span class="c">1/L</span> Σ<sub>l</sub> <b>g<sub>i,l</sub></b> · r<sub>i,l</sub> · Â<sup>final</sup><sub>i,l</sub>
+        </div>
+        <p style="margin-top:12px;font-size:13.5px">
+          ① 回答<strong>「该生成什么」</strong>（结构对不对），② 回答<strong>「生成得值不值」</strong>（转化价值高不高）。两条信息互不干扰地叠加。
+        </p>
+      </div>
+
+      <div class="stack">
+        <div class="card">
+          <span class="num">设计意图</span>
+          <h3>为什么前两位权重是 2</h3>
+          <p>前两位是 RQ 的共性编码（类目、大属性），第 3–4 位偏细粒度。<strong>生成式检索首先要保证语义相关</strong>，所以粗粒度位置的贡献要加倍。</p>
+          <p style="margin-top:9px">注意代码里 <code>l = L</code>（第 5 位）的权重是 <strong>0</strong> —— 最后一位不参与边际奖励，只通过 <code>Â<sup>item</sup></code> 那一路拿到信号。</p>
+        </div>
+        <div class="card">
+          <span class="num">为什么敢去掉 clip</span>
+          <h3>门控就是天然的正则</h3>
+          <p>标准 GRPO 靠 clip 防止重要性比爆炸。TPMA 里当 <code>g → 0</code>，无论比值多大，该位置的有效梯度都归零。</p>
+          <p style="margin-top:9px">作者说这与 OneRec-V2 的 GBPO 精神类似，但用<strong>结构化门控</strong>而非硬截断，稳定性更好。同时会混入额外的 SFT 保持模型不漂。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-part="V2">
+  <div class="wrap stack">
+    <div>
+      <div class="eyebrow"><b>V2 结果</b><span class="dot"></span>离线 + 线上</div>
+      <h2>每一项创新都在往上叠，长尾和冷启动受益最大</h2>
+    </div>
+
+    <div class="grid2">
+      <div>
+        <div class="tw">
+          <table>
+            <thead><tr><th>累加消融</th><th>成交 HR@10</th><th>成交 MRR@10</th><th>点击 HR@10</th><th>点击 MRR@10</th></tr></thead>
+            <tbody>
+              <tr><td>OneSearch（V1）</td><td>0.2046</td><td>0.0985</td><td>0.2231</td><td>0.0728</td></tr>
+              <tr><td>＋ CoT 任务</td><td>0.2094</td><td>0.1008</td><td>0.2266</td><td>0.0731</td></tr>
+              <tr><td>＋ 自蒸馏</td><td>0.2163</td><td>0.1017</td><td>0.2398</td><td>0.0757</td></tr>
+              <tr><td>＋ R-Drop / FGM / Focal</td><td>0.2214</td><td>0.1048</td><td>0.2471</td><td>0.0788</td></tr>
+              <tr class="dim"><td>＋ PARS（V1 奖励系统）</td><td>0.2221</td><td>0.1067</td><td>0.2538</td><td>0.0809</td></tr>
+              <tr class="dim"><td>＋ 标准 GRPO</td><td>0.2248</td><td>0.1106</td><td>0.2481</td><td>0.0798</td></tr>
+              <tr><td>＋ TPMA</td><td>0.2265</td><td>0.1136</td><td>0.2498</td><td>0.0815</td></tr>
+              <tr class="hl"><td>OneSearch-V2（DPO→TPMA）</td><td class="best">0.2314</td><td class="best">0.1151</td><td class="best">0.2568</td><td class="best">0.0833</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p style="font-size:12.5px;color:var(--muted);margin-top:8px">
+          有效 SID 率也一路上涨，最终 98.90%（点击）/ 99.15%（成交）—— 生成的 token 串几乎总能对应到真实商品。
+        </p>
+      </div>
+
+      <div class="stack">
+        <div>
+          <div class="tw">
+            <table>
+              <thead><tr><th>线上 A/B（基线＝V1）</th><th>商品CTR</th><th>PV CVR</th><th>买家</th><th>订单</th></tr></thead>
+              <tbody>
+                <tr><td>V2_RAG（只加 CoT 任务）</td><td class="up">+0.52%</td><td class="up">+0.63%</td><td class="up">+1.04%</td><td class="up">+1.07%</td></tr>
+                <tr><td>V2_Reason（＋自蒸馏）</td><td class="up">+2.59%</td><td class="up">+2.21%</td><td class="up">+1.50%</td><td class="up">+1.57%</td></tr>
+                <tr class="hl"><td>OneSearch-V2（全量）</td><td class="up best">+3.98%</td><td class="up best">+2.90%</td><td class="up best">+2.07%</td><td class="up best">+2.11%</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p style="font-size:12.5px;color:var(--muted);margin-top:8px">全部 P&lt;0.05。另外 GMV +3.45%，人工评测页面好评率 +1.37%、相关性 +1.65%。</p>
+        </div>
+
+        <div class="card">
+          <span class="num">增益结构</span>
+          <h3>越难的场景，涨得越多</h3>
+          <ul class="tight">
+            <li>长尾 query <strong>+5.37%</strong> &gt; 高频 +5.01% &gt; 腰部 +4.88%</li>
+            <li>冷启动商品 <strong>+6.16%</strong> &gt; 温 +5.69% &gt; 热门 +4.81%</li>
+            <li>行业维度上服饰、鞋靴、美妆、五金电工涨得最猛 —— 正是「头部大、但 query 歧义多」的品类</li>
+          </ul>
+          <p style="margin-top:10px;font-size:13.5px">这正好印证了那条主线：<strong>V2 的收益来自「理解得更深」，而不是「拟合得更狠」</strong>。</p>
+        </div>
+
+        <div class="note">
+          <strong>一个实用的副产品</strong>：3.18 大促时需要给新商家扶流量，运营只需把这些商品的相关性奖励 +1
+          （<code>R_rel^new = R_rel^ori + 1</code>），排位立刻上升。
+          <strong>不用重训、不用改模型结构，改一个奖励项就完成了业务干预</strong> —— 这在生成式检索的工业落地里是很稀缺的能力。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════ 收尾 ══════════════════ -->
+<section class="slide" data-part="收尾">
+  <div class="wrap stack">
+    <div>
+      <div class="eyebrow"><b>代码地图</b><span class="dot"></span>onesearch-family</div>
+      <h2>论文的哪一节，对应仓库的哪个文件</h2>
+      <p class="sub">仓库已 clone 到 <code>~/Documents/GitHub/onesearch-family</code>。开源的是核心组件，不是完整训练系统。</p>
+    </div>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th>文件</th><th>对应算法</th><th>论文位置</th><th>关键点</th></tr></thead>
+        <tbody>
+          <tr><td><code>rq-opq/keyword_enhance.py</code></td><td>核心关键词增强</td><td>V1 §3.1.2</td><td>18 类 NER 字典 + AC 自动机匹配，向量各占一半</td></tr>
+          <tr><td><code>rq-opq/rq_dynamic.py</code></td><td>RQ 残差 K-means</td><td>V1 §3.1.3</td><td><code>--k 4096-1024-512</code>，支持增量训练（<code>--referfolder</code>）</td></tr>
+          <tr><td><code>rq-opq/rq_opq.py</code></td><td>OPQ 残差量化</td><td>V1 §3.1.3</td><td>FAISS OPQ，第二个子码 <strong>+256 偏移</strong>避免 token 冲突</td></tr>
+          <tr><td><code>rq-opq/test_cur_icr.py</code></td><td>CUR / ICR 评估</td><td>V1 表 2–3</td><td>码本利用率与独立编码率</td></tr>
+          <tr class="hl"><td><code>self-distillation/…/joint_sdft_trainer.py</code></td><td>推理内化自蒸馏</td><td>V2 §3.3</td><td><code>joint</code> / <code>ema</code> 双模式；KL 用尾部对齐处理师生长度差</td></tr>
+          <tr><td><code>self-distillation/onesearch_sft_and_sd.yaml</code></td><td>SDFT 超参</td><td>V2 §4</td><td><code>kl_weight=0.1</code>, <code>temperature=1.0</code>, <code>sdft_keyword_pattern</code></td></tr>
+          <tr><td><code>rlhf/reward.py</code></td><td>复合奖励</td><td>V2 §3.4.1</td><td>R_C&amp;O + R_CTR + R_Rel，另有 SID 格式正则奖励</td></tr>
+          <tr class="hl"><td><code>rlhf/tpma.py</code></td><td>TPMA-GRPO</td><td>V2 §3.4.3</td><td>位置权重、边际贡献、前缀门控、无 clip 的 loss</td></tr>
+          <tr><td><code>rlhf/listwisedpo.py</code></td><td>listwise DPO</td><td>V1 §3.4.2</td><td>一正多负的 S-DPO 扩展</td></tr>
+          <tr><td><code>dataset_examples.md</code></td><td>各阶段数据格式</td><td>V1/V2 表 1</td><td>三阶段 SFT 与 4 个 CoT 任务的真实中文样例</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="grid2">
+      <div class="note">
+        <strong>读代码的推荐顺序</strong>：<code>dataset_examples.md</code>（先搞清输入输出长什么样）→
+        <code>rq_opq.py</code>（SID 怎么来的）→ <code>joint_sdft_trainer.py</code>（自蒸馏的 30 行核心）→
+        <code>tpma.py</code>（<code>_compute_single_group</code> 一个函数就是整套 TPMA）。
+      </div>
+      <div class="note">
+        <strong>没开源的部分</strong>：对齐 BGE 的训练、QFormer 长序列压缩、线上骨干模型与参数量、
+        奖励模型三塔（V1）、Qwen3-32B 的 CoT 生成 prompt（在论文附录里）。
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-part="收尾">
+  <div class="wrap stack">
+    <div>
+      <div class="eyebrow"><b>全景</b><span class="dot"></span>两代对照</div>
+      <h2>V1 建骨架，V2 补大脑</h2>
+    </div>
+
+    <div class="figbox">
+      <figure>
+        <svg viewBox="0 0 900 240" role="img" aria-label="V1 与 V2 的训练流水线对照：V2 在 SFT Stage 1 增加 CoT 任务、把 Stage 3 换成自蒸馏、把 RL 阶段的奖励模型换成直接行为反馈与 TPMA">
+          <defs>
+            <marker id="a8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <polygon points="0,0 10,5 0,10" fill="currentColor"/>
+            </marker>
+          </defs>
+
+          <text x="0" y="16" font-size="11.5" fill="var(--muted)" font-weight="600">OneSearch V1</text>
+          <rect x="96" y="28" width="168" height="44" rx="6" fill="none" stroke="currentColor" stroke-width="1.2"/>
+          <text x="180" y="47" font-size="11" text-anchor="middle" fill="currentColor">SFT 1 · 语义对齐</text>
+          <text x="180" y="63" font-size="9.5" text-anchor="middle" fill="var(--muted)">SID ↔ 文本 ↔ 类目</text>
+
+          <rect x="288" y="28" width="150" height="44" rx="6" fill="none" stroke="currentColor" stroke-width="1.2"/>
+          <text x="363" y="47" font-size="11" text-anchor="middle" fill="currentColor">SFT 2 · 共现同步</text>
+          <text x="363" y="63" font-size="9.5" text-anchor="middle" fill="var(--muted)">q ↔ i</text>
+
+          <rect x="462" y="28" width="168" height="44" rx="6" fill="none" stroke="currentColor" stroke-width="1.2"/>
+          <text x="546" y="47" font-size="11" text-anchor="middle" fill="currentColor">SFT 3 · 用户个性化</text>
+          <text x="546" y="63" font-size="9.5" text-anchor="middle" fill="var(--muted)">标准微调</text>
+
+          <rect x="654" y="28" width="180" height="44" rx="6" fill="none" stroke="currentColor" stroke-width="1.2"/>
+          <text x="744" y="47" font-size="11" text-anchor="middle" fill="currentColor">RL · 奖励模型 + DPO</text>
+          <text x="744" y="63" font-size="9.5" text-anchor="middle" fill="var(--muted)">三塔 SIM，周期更新</text>
+
+          <line x1="266" y1="50" x2="284" y2="50" stroke="currentColor" stroke-width="1.2" marker-end="url(#a8)"/>
+          <line x1="440" y1="50" x2="458" y2="50" stroke="currentColor" stroke-width="1.2" marker-end="url(#a8)"/>
+          <line x1="632" y1="50" x2="650" y2="50" stroke="currentColor" stroke-width="1.2" marker-end="url(#a8)"/>
+
+          <!-- V2 -->
+          <text x="0" y="150" font-size="11.5" fill="var(--v2)" font-weight="600">OneSearch V2</text>
+          <rect x="96" y="162" width="168" height="52" rx="6" fill="var(--v2-soft)" stroke="var(--v2)" stroke-width="1.5"/>
+          <text x="180" y="181" font-size="11" text-anchor="middle" fill="var(--v2)">SFT 1 ＋ CoT 任务</text>
+          <text x="180" y="196" font-size="9.5" text-anchor="middle" fill="var(--muted)">4 个关键词理解任务</text>
+          <text x="180" y="209" font-size="9" text-anchor="middle" fill="var(--v2)">↑ 复杂 query 理解</text>
+
+          <rect x="288" y="162" width="150" height="52" rx="6" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="4 3"/>
+          <text x="363" y="187" font-size="11" text-anchor="middle" fill="var(--muted)">SFT 2 · 不变</text>
+          <text x="363" y="203" font-size="9.5" text-anchor="middle" fill="var(--muted)">q ↔ i</text>
+
+          <rect x="462" y="162" width="168" height="52" rx="6" fill="var(--v2-soft)" stroke="var(--v2)" stroke-width="1.5"/>
+          <text x="546" y="181" font-size="11" text-anchor="middle" fill="var(--v2)">SFT 3 → 自蒸馏</text>
+          <text x="546" y="196" font-size="9.5" text-anchor="middle" fill="var(--muted)">+R-Drop +FGM +Focal</text>
+          <text x="546" y="209" font-size="9" text-anchor="middle" fill="var(--v2)">↑ 个性化意图推理</text>
+
+          <rect x="654" y="162" width="180" height="52" rx="6" fill="var(--v2-soft)" stroke="var(--v2)" stroke-width="1.5"/>
+          <text x="744" y="181" font-size="11" text-anchor="middle" fill="var(--v2)">RL · 行为反馈 + TPMA</text>
+          <text x="744" y="196" font-size="9.5" text-anchor="middle" fill="var(--muted)">无奖励模型，流式更新</text>
+          <text x="744" y="209" font-size="9" text-anchor="middle" fill="var(--v2)">↑ 摆脱历史分布偏差</text>
+
+          <line x1="266" y1="188" x2="284" y2="188" stroke="currentColor" stroke-width="1.2" marker-end="url(#a8)"/>
+          <line x1="440" y1="188" x2="458" y2="188" stroke="currentColor" stroke-width="1.2" marker-end="url(#a8)"/>
+          <line x1="632" y1="188" x2="650" y2="188" stroke="currentColor" stroke-width="1.2" marker-end="url(#a8)"/>
+
+          <!-- change arrows -->
+          <line x1="180" y1="76" x2="180" y2="156" stroke="var(--v2)" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#a8)"/>
+          <line x1="546" y1="76" x2="546" y2="156" stroke="var(--v2)" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#a8)"/>
+          <line x1="744" y1="76" x2="744" y2="156" stroke="var(--v2)" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#a8)"/>
+
+          <text x="0" y="116" font-size="10.5" fill="var(--muted)">V2 动了三处，SID 编码（KHQE）与模型架构完全沿用 V1 —— 这是一次纯粹的「训练侧」升级</text>
+        </svg>
+        <figcaption>V2 没有改表示、没有改架构、没有增加推理成本，三处改动全部落在训练流程上。</figcaption>
+      </figure>
+    </div>
+
+    <div class="grid2">
+      <div class="card rq">
+        <span class="num">V1 回答的问题</span>
+        <h3>端到端生成能不能替掉整条链路？</h3>
+        <p>能。关键在于 SID 必须<strong>同时编码层次共性（RQ）和独特个性（OPQ）</strong>，行为必须<strong>按时效分三路注入</strong>，
+           以及必须有偏好对齐才能补上「排序」这一课。</p>
+        <p style="margin-top:9px">代价降了 75%，MFU 涨了 8 倍。</p>
+      </div>
+      <div class="card v2">
+        <span class="num">V2 回答的问题</span>
+        <h3>不加推理成本，能不能获得推理能力？</h3>
+        <p>能。关键在于<strong>推理必须内化而不是外显</strong> —— 让模型说出思考过程会崩，把思考灌进权重才有效。
+           而信息不对称的自蒸馏，是最省的实现方式。</p>
+        <p style="margin-top:9px">顺带把奖励模型也扔了，换成可以随时调的复合奖励。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-part="收尾">
+  <div class="wrap stack">
+    <div>
+      <div class="eyebrow"><b>要点</b><span class="dot"></span>如果只记住六件事</div>
+      <h2>可迁移的经验</h2>
+    </div>
+
+    <div class="grid2">
+      <div class="card rq">
+        <span class="num">01</span>
+        <h3>量化要分工，别指望一种方法全包</h3>
+        <p>RQ 管纵向层次，OPQ 消费 RQ 丢弃的残差管横向区分。ICR 68% → 92%。而且层数要克制 —— OPQ 加到 4 层反而暴跌。</p>
+      </div>
+      <div class="card rq">
+        <span class="num">02</span>
+        <h3>均衡聚类只在最后一层做</h3>
+        <p>为了追利用率在所有层做 balanced kmeans，会导致层次聚类崩塌，指标全面倒退。粗粒度层要让它自然聚。</p>
+      </div>
+      <div class="card opq">
+        <span class="num">03</span>
+        <h3>多模态不是越多越好</h3>
+        <p>109M 的文本编码器打赢 2B 的多模态模型。正确姿势是<strong>先用 VLM 把多模态翻译成关键词，再统一文本编码</strong>。</p>
+      </div>
+      <div class="card v2">
+        <span class="num">04</span>
+        <h3>推理放输入端有用，放输出端有害</h3>
+        <p>在异质符号空间（SID vs 文本）里让小模型显式生成 CoT，HR@10 直接腰斩。这个坑值得记牢。</p>
+      </div>
+      <div class="card v2">
+        <span class="num">05</span>
+        <h3>信息不对称自蒸馏是极高性价比的工具</h3>
+        <p>同一套权重、只改输入、只加一个 KL 项，就能把「有特权信息时的能力」压进「没有特权信息时的权重」。学生甚至能超过老师。</p>
+      </div>
+      <div class="card v2">
+        <span class="num">06</span>
+        <h3>输出有结构时，advantage 就该有结构</h3>
+        <p>SID 是 coarse→fine 的因果链，给整条序列同一个 advantage 就是浪费信号。逐位置归一化 + 前缀门控，还顺手替代了 clip。</p>
+      </div>
+    </div>
+
+    <div class="insight">
+      <span class="tag">贯穿两篇论文的一条主线</span>
+      <p>
+        <strong>把「结构」显式地告诉优化过程</strong> —— 商品有层次结构，所以 SID 要分层；
+        SID 有因果结构，所以 advantage 要分位置；推理有信息结构，所以蒸馏要造不对称。
+        每一处收益，都来自把领域里本来就存在的结构，翻译成了训练目标的一部分。
+      </p>
+    </div>
+
+    <div class="note">
+      论文自陈的三个待解方向：① 长尾 query 交互太少，需要更好的 beyond-logs 训练策略；
+      ② 视频、直播、商品三种异质内容如何共用一套 SID；③ 走向 agentic search 所需的实时在线学习机制。
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="hud">
+  <span class="cnt" id="cnt">1 / 25</span>
+  <button id="prev" aria-label="上一页">‹</button>
+  <button id="next" aria-label="下一页">›</button>
+</div>
+
+<script>
+(function(){
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var rail = document.getElementById('rail');
+  var cnt = document.getElementById('cnt');
+  var i = 0;
+
+  // build rail, grouped by data-part
+  var groups = [], last = null;
+  slides.forEach(function(s, idx){
+    var p = s.getAttribute('data-part') || '';
+    if(p !== last){ groups.push({part:p, idx:[]}); last = p; }
+    groups[groups.length-1].idx.push(idx);
+  });
+  var ticks = [];
+  groups.forEach(function(g){
+    var box = document.createElement('div');
+    box.className = 'rail-part';
+    g.idx.forEach(function(n){
+      var b = document.createElement('button');
+      b.className = 'rail-tick';
+      b.setAttribute('aria-label', '第 ' + (n+1) + ' 页');
+      b.addEventListener('click', function(){ go(n); });
+      box.appendChild(b);
+      ticks[n] = b;
+    });
+    var lab = document.createElement('span');
+    lab.className = 'rail-label';
+    lab.textContent = g.part;
+    box.appendChild(lab);
+    rail.appendChild(box);
+  });
+
+  function go(n){
+    i = Math.max(0, Math.min(slides.length-1, n));
+    slides.forEach(function(s, k){ s.classList.toggle('on', k===i); });
+    ticks.forEach(function(t, k){ t.classList.toggle('on', k===i); });
+    cnt.textContent = (i+1) + ' / ' + slides.length;
+    window.scrollTo(0,0);
+    if(location.hash !== '#'+(i+1)) history.replaceState(null,'','#'+(i+1));
+  }
+
+  document.getElementById('prev').addEventListener('click', function(){ go(i-1); });
+  document.getElementById('next').addEventListener('click', function(){ go(i+1); });
+
+  document.addEventListener('keydown', function(e){
+    if(e.metaKey || e.ctrlKey || e.altKey) return;
+    if(e.key === 'ArrowRight' || e.key === 'PageDown'){ e.preventDefault(); go(i+1); }
+    else if(e.key === 'ArrowLeft' || e.key === 'PageUp'){ e.preventDefault(); go(i-1); }
+    else if(e.key === ' '){ e.preventDefault(); go(i+1); }
+    else if(e.key === 'Home'){ e.preventDefault(); go(0); }
+    else if(e.key === 'End'){ e.preventDefault(); go(slides.length-1); }
+  });
+
+  var start = parseInt((location.hash||'').replace('#',''), 10);
+  go(isNaN(start) ? 0 : start-1);
+})();
+</script>
