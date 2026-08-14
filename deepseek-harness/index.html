@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DeepSeek Harness 架构精讲 · 一切皆插件的 Agent 框架</title>
+<meta name="description" content="拆解 DeepSeek 开源 agent harness（dsh）：Cordis 插件模型、profile/bundle 分层、turn/step 循环、能力 seam、会话日志不变量与工程纪律。">
+<style>
+/* ───────────────── tokens：light 为完整调色板 ───────────────── */
+:root{
+  --paper:#F7F8FA;
+  --surface:#FFFFFF;
+  --surface-2:#EDF0F5;
+  --ink:#14171F;
+  --ink-2:#39404E;
+  --muted:#6B7382;
+  --line:#DDE2EA;
+  --line-soft:#E9EDF3;
+
+  /* DeepSeek 蓝 = 主干；语义色用于区分三类概念 */
+  --ds:#3B5BFB;          /* 主干 / 核心 */
+  --ds-2:#6E86FF;
+  --ds-wash:#E9EDFF;
+
+  --plug:#0E7C7B;        /* 插件 / 可替换件 */
+  --plug-wash:#DCF0EF;
+
+  --evt:#6B3FBF;         /* 事件 / 扩展点 */
+  --evt-wash:#EDE6FA;
+
+  --seam:#A9701C;        /* seam / 策略 / 注意 */
+  --seam-wash:#F8EDD9;
+
+  --bad:#AC3A31;
+  --bad-wash:#FAE7E5;
+  --good:#2C7350;
+
+  --f-sans:"PingFang SC","Hiragino Sans GB","Noto Sans SC","Microsoft YaHei",-apple-system,system-ui,"Segoe UI",sans-serif;
+  --f-mono:"SF Mono",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
+  --shadow:0 1px 2px rgba(18,22,32,.05),0 10px 30px -16px rgba(18,22,32,.18);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0E1116;
+    --surface:#161A21;
+    --surface-2:#1D222B;
+    --ink:#E9ECF2;
+    --ink-2:#BFC6D2;
+    --muted:#8A92A1;
+    --line:#2A303A;
+    --line-soft:#222831;
+
+    --ds:#8299FF;
+    --ds-2:#A9B8FF;
+    --ds-wash:#1A2142;
+
+    --plug:#4FBDB5;
+    --plug-wash:#12302F;
+
+    --evt:#AE92EB;
+    --evt-wash:#251C3D;
+
+    --seam:#E0A84F;
+    --seam-wash:#33280F;
+
+    --bad:#E5837A;
+    --bad-wash:#361D1B;
+    --good:#5FB588;
+
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 32px -18px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0E1116; --surface:#161A21; --surface-2:#1D222B;
+  --ink:#E9ECF2; --ink-2:#BFC6D2; --muted:#8A92A1;
+  --line:#2A303A; --line-soft:#222831;
+  --ds:#8299FF; --ds-2:#A9B8FF; --ds-wash:#1A2142;
+  --plug:#4FBDB5; --plug-wash:#12302F;
+  --evt:#AE92EB; --evt-wash:#251C3D;
+  --seam:#E0A84F; --seam-wash:#33280F;
+  --bad:#E5837A; --bad-wash:#361D1B; --good:#5FB588;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 32px -18px rgba(0,0,0,.8);
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:var(--f-sans);
+  line-height:1.68;
+  -webkit-font-smoothing:antialiased;
+  font-feature-settings:"tnum" 1;
+}
+
+/* ───────────────── deck 骨架 ───────────────── */
+#deck{
+  height:100vh;
+  overflow-y:auto;
+  scroll-snap-type:y mandatory;
+  scroll-behavior:smooth;
+}
+.slide{
+  min-height:100vh;
+  scroll-snap-align:start;
+  scroll-snap-stop:always;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  gap:22px;
+  padding:62px 72px 78px 104px;
+  border-bottom:1px solid var(--line-soft);
+  position:relative;
+}
+.slide > *{max-width:1180px;width:100%}
+
+/* 左侧导航条 */
+#rail{
+  position:fixed;left:34px;top:50%;transform:translateY(-50%);
+  display:flex;flex-direction:column;gap:9px;z-index:20;
+}
+#rail b{
+  width:7px;height:7px;border-radius:50%;
+  background:var(--line);cursor:pointer;display:block;
+  transition:background .18s, transform .18s;
+}
+#rail b:hover{background:var(--ds-2);transform:scale(1.35)}
+#rail b.on{background:var(--ds);transform:scale(1.5)}
+#rail b:focus-visible{outline:2px solid var(--ds);outline-offset:3px}
+
+#counter{
+  position:fixed;right:26px;bottom:20px;z-index:20;
+  font:600 12px/1 var(--f-mono);color:var(--muted);
+  letter-spacing:.06em;
+  background:var(--surface);border:1px solid var(--line);
+  padding:7px 11px;border-radius:99px;
+}
+#bar{
+  position:fixed;left:0;top:0;height:2px;width:0;
+  background:linear-gradient(90deg,var(--ds),var(--plug));
+  z-index:30;transition:width .25s ease;
+}
+
+/* ───────────────── 排版件 ───────────────── */
+.eyebrow{
+  font:700 11px/1 var(--f-mono);letter-spacing:.16em;
+  text-transform:uppercase;color:var(--ds);
+  display:flex;align-items:center;gap:10px;
+}
+.eyebrow::after{content:"";flex:1;height:1px;background:var(--line);max-width:180px}
+h1{font-size:clamp(34px,4.6vw,62px);line-height:1.14;letter-spacing:-.022em;font-weight:800}
+h2{font-size:clamp(24px,2.9vw,38px);line-height:1.22;letter-spacing:-.016em;font-weight:750}
+h3{font-size:15px;font-weight:750;letter-spacing:-.005em}
+.sub{font-size:clamp(15px,1.35vw,19px);color:var(--ink-2);max-width:80ch}
+.lede{font-size:clamp(14px,1.15vw,17px);color:var(--ink-2);max-width:86ch}
+.muted{color:var(--muted)}
+.mono{font-family:var(--f-mono)}
+b,strong{font-weight:750;color:var(--ink)}
+em{font-style:normal;color:var(--ds);font-weight:700}
+
+/* 卡片 */
+.card{
+  background:var(--surface);border:1px solid var(--line);
+  border-radius:14px;padding:18px 20px;box-shadow:var(--shadow);
+}
+.card > h3{margin-bottom:7px}
+.card p{font-size:14px;color:var(--ink-2)}
+.card.tint-ds{border-color:color-mix(in srgb,var(--ds) 32%,var(--line));background:var(--ds-wash)}
+.card.tint-plug{border-color:color-mix(in srgb,var(--plug) 32%,var(--line));background:var(--plug-wash)}
+.card.tint-evt{border-color:color-mix(in srgb,var(--evt) 32%,var(--line));background:var(--evt-wash)}
+.card.tint-seam{border-color:color-mix(in srgb,var(--seam) 32%,var(--line));background:var(--seam-wash)}
+.card.tint-bad{border-color:color-mix(in srgb,var(--bad) 32%,var(--line));background:var(--bad-wash)}
+
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(2,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g4{grid-template-columns:repeat(4,1fr)}
+.g23{grid-template-columns:1.15fr 1fr}
+
+/* 序号项 */
+.num{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:22px;height:22px;border-radius:6px;flex:none;
+  background:var(--ds);color:#fff;
+  font:700 11px/1 var(--f-mono);
+}
+:root[data-theme="dark"] .num,
+:root:not([data-theme="light"]) .num{color:#0E1116}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]) .num{color:#fff}}
+
+.row{display:flex;gap:12px;align-items:flex-start}
+
+/* 表格 */
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+th{
+  font:700 10.5px/1.4 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);border-bottom:1px solid var(--line);
+}
+td.k{font-family:var(--f-mono);font-size:12.5px;color:var(--ds);white-space:nowrap}
+tbody tr:last-child td{border-bottom:none}
+.tbl{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:var(--shadow)}
+
+/* 代码 / 流程 */
+pre{
+  background:var(--surface-2);border:1px solid var(--line);
+  border-radius:12px;padding:16px 18px;overflow-x:auto;
+  font-family:var(--f-mono);font-size:12.5px;line-height:1.8;color:var(--ink-2);
+}
+code{font-family:var(--f-mono);font-size:.92em;background:var(--surface-2);
+  padding:1.5px 5px;border-radius:5px;color:var(--ink)}
+pre code{background:none;padding:0}
+
+/* 标签 */
+.tag{
+  display:inline-block;font:700 10.5px/1.5 var(--f-mono);
+  letter-spacing:.05em;padding:2.5px 8px;border-radius:99px;
+  border:1px solid var(--line);color:var(--muted);background:var(--surface);
+}
+.tag.ds{color:var(--ds);border-color:color-mix(in srgb,var(--ds) 40%,transparent);background:var(--ds-wash)}
+.tag.plug{color:var(--plug);border-color:color-mix(in srgb,var(--plug) 40%,transparent);background:var(--plug-wash)}
+.tag.evt{color:var(--evt);border-color:color-mix(in srgb,var(--evt) 40%,transparent);background:var(--evt-wash)}
+.tag.seam{color:var(--seam);border-color:color-mix(in srgb,var(--seam) 40%,transparent);background:var(--seam-wash)}
+.tags{display:flex;flex-wrap:wrap;gap:7px}
+
+/* 引文 */
+.quote{
+  border-left:3px solid var(--ds);padding:6px 0 6px 18px;
+  font-size:15px;color:var(--ink-2);
+}
+.quote cite{display:block;margin-top:6px;font:600 11.5px/1 var(--f-mono);color:var(--muted);font-style:normal}
+
+/* 关键指标 */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:0;
+  border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface)}
+.stats div{padding:16px 18px;border-right:1px solid var(--line-soft)}
+.stats div:last-child{border-right:none}
+.stats .n{font:800 clamp(22px,2.4vw,32px)/1 var(--f-mono);color:var(--ds);letter-spacing:-.02em}
+.stats .l{font-size:12px;color:var(--muted);margin-top:6px}
+
+/* 分层堆叠图 */
+.stack{display:flex;flex-direction:column-reverse;gap:6px}
+.layer{
+  display:flex;align-items:center;gap:12px;
+  border:1px solid var(--line);border-radius:10px;
+  padding:11px 15px;background:var(--surface);font-size:13.5px;
+}
+.layer .lb{font:700 10.5px/1 var(--f-mono);color:var(--muted);width:64px;flex:none;letter-spacing:.06em}
+.layer .nm{font-family:var(--f-mono);font-size:12.5px;color:var(--ink);font-weight:600}
+.layer .ds-{color:var(--ds)}
+.layer.base{background:var(--ds-wash);border-color:color-mix(in srgb,var(--ds) 30%,var(--line))}
+.layer.mode{background:var(--plug-wash);border-color:color-mix(in srgb,var(--plug) 30%,var(--line))}
+.layer.user{background:var(--seam-wash);border-color:color-mix(in srgb,var(--seam) 30%,var(--line))}
+.layer .why{margin-left:auto;font-size:12px;color:var(--muted);text-align:right}
+
+/* 轮次流程 */
+.flow{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px;box-shadow:var(--shadow)}
+.flow ol{list-style:none;font-family:var(--f-mono);font-size:12.5px;line-height:2.05}
+.flow li{white-space:pre;overflow-x:auto}
+.ev{padding:1.5px 7px;border-radius:5px;font-weight:700}
+.ev.log{background:var(--ds-wash);color:var(--ds);border:1px solid color-mix(in srgb,var(--ds) 30%,transparent)}
+.ev.ext{background:var(--evt-wash);color:var(--evt);border:1px solid color-mix(in srgb,var(--evt) 30%,transparent)}
+.ev.wf{background:var(--seam-wash);color:var(--seam);border:1px dashed color-mix(in srgb,var(--seam) 55%,transparent)}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:12px}
+
+/* seam 三角 */
+.seam3{display:grid;grid-template-columns:repeat(3,1fr);gap:0;align-items:stretch}
+.seam3 > div{padding:16px 18px;border:1px solid var(--line);background:var(--surface)}
+.seam3 > div:first-child{border-radius:14px 0 0 14px}
+.seam3 > div:last-child{border-radius:0 14px 14px 0}
+.seam3 > div + div{border-left:none}
+.seam3 .role{font:700 10.5px/1 var(--f-mono);letter-spacing:.09em;text-transform:uppercase;margin-bottom:8px}
+.seam3 .ex{font-family:var(--f-mono);font-size:12px;color:var(--ink-2);margin-top:9px;line-height:1.75}
+
+/* 工具网格 */
+.tools{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.toolbox{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:13px 15px}
+.toolbox h3{font-size:12px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;
+  font-family:var(--f-mono);margin-bottom:9px}
+.toolbox span{display:inline-block;font-family:var(--f-mono);font-size:12px;color:var(--ink-2);
+  margin:0 8px 3px 0;white-space:nowrap}
+
+/* 对照两栏 */
+.vs{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.vs > div{border-radius:14px;padding:18px 20px;border:1px solid var(--line);background:var(--surface)}
+.vs .old{background:var(--bad-wash);border-color:color-mix(in srgb,var(--bad) 26%,var(--line))}
+.vs .new{background:var(--ds-wash);border-color:color-mix(in srgb,var(--ds) 30%,var(--line))}
+.vs h3{margin-bottom:10px}
+.vs ul{list-style:none;font-size:13.5px;color:var(--ink-2);display:flex;flex-direction:column;gap:8px}
+.vs li{padding-left:16px;position:relative}
+.vs li::before{content:"—";position:absolute;left:0;color:var(--muted)}
+
+/* 要点列表 */
+ul.pts{list-style:none;display:flex;flex-direction:column;gap:10px;font-size:14px;color:var(--ink-2)}
+ul.pts li{padding-left:18px;position:relative}
+ul.pts li::before{content:"";position:absolute;left:0;top:.62em;width:6px;height:6px;border-radius:50%;background:var(--ds)}
+
+.note{
+  font-size:12.5px;color:var(--muted);border-top:1px solid var(--line-soft);
+  padding-top:11px;line-height:1.7;
+}
+.note b{color:var(--ink-2)}
+
+/* 封面 */
+.cover{justify-content:center;gap:28px}
+.cover .hero{max-width:900px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.hint{
+  position:absolute;left:104px;bottom:44px;
+  font:600 11.5px/1 var(--f-mono);color:var(--muted);letter-spacing:.05em;
+}
+
+/* 响应式 */
+@media (max-width:1080px){
+  .g4,.tools,.stats{grid-template-columns:repeat(2,1fr)}
+  .g3{grid-template-columns:repeat(2,1fr)}
+  .stats div:nth-child(2){border-right:none}
+  .stats div:nth-child(-n+2){border-bottom:1px solid var(--line-soft)}
+}
+@media (max-width:860px){
+  .slide{padding:48px 24px 66px 44px;gap:18px}
+  #rail{left:14px}
+  .hint{left:44px}
+  .g2,.g23,.g3,.g4,.vs,.tools,.seam3{grid-template-columns:1fr}
+  .seam3 > div{border-radius:12px !important;border-left:1px solid var(--line) !important}
+  .seam3 > div + div{margin-top:-1px}
+  .stats{grid-template-columns:1fr}
+  .stats div{border-right:none;border-bottom:1px solid var(--line-soft)}
+  .layer{flex-wrap:wrap}
+  .layer .why{margin-left:0;width:100%;text-align:left}
+}
+@media print{
+  #rail,#counter,#bar,.hint{display:none}
+  #deck{height:auto;overflow:visible}
+  .slide{min-height:auto;page-break-after:always;padding:28px}
+}
+</style>
+</head>
+<body>
+
+<div id="bar"></div>
+<nav id="rail" aria-label="幻灯片导航"></nav>
+<div id="counter">01 / 24</div>
+
+<main id="deck">
+
+<!-- 01 ─────────────────────────────────────── -->
+<section class="slide cover">
+  <div class="eyebrow">开源 Agent Harness 拆解 · 2026</div>
+  <div class="hero">
+    <h1>DeepSeek&nbsp;Harness<br><span style="color:var(--ds)">一切皆插件</span>的智能体框架</h1>
+  </div>
+  <p class="sub">从 Cordis 插件模型、profile/bundle 分层组装，到 turn/step 循环、能力 seam 与会话日志不变量 —— 一份面向工程师的架构导读。</p>
+  <div class="chips">
+    <span class="tag ds">deepseek-ai/deepseek-harness</span>
+    <span class="tag">CLI 名 <b>dsh</b></span>
+    <span class="tag">MIT</span>
+    <span class="tag">v0.1.0-rc.5 · 开发者预览</span>
+    <span class="tag">TypeScript · ESM · Node ≥ 22.19</span>
+  </div>
+  <div class="hint">← / → 或空格翻页</div>
+</section>
+
+<!-- 02 ─────────────────────────────────────── -->
+<section class="slide">
+  <div class="eyebrow">30 秒速览</div>
+  <h2>它是什么，以及为什么值得看</h2>
+  <div class="grid g2">
+    <div class="card tint-ds">
+      <h3>它是什么</h3>
+      <p>DeepSeek 开源的 <b>agent harness</b>（智能体框架），命令行叫 <code>dsh</code>。你会得到一个能读写文件、跑命令、委派子 agent、维护计划的编码智能体 —— 但重点不是"又一个编码 agent"。</p>
+    </div>
+    <div class="card tint-plug">
+      <h3>它的赌注</h3>
+      <p><b>这套壳子本身可以整块替换。</b>模型适配器、工具注册表、会话日志、沙箱策略，甚至 <em>agent loop 本身</em>，全都是插件 —— 于是每一部分都能从配置替换掉。</p>
+    </div>
+    <div class="card">
+      <h3>底座</h3>
+      <p>以 vendor 方式引入的插件框架 <b>Cordis</b>，其设计出自论文《A Programming Paradigm for Spatiotemporal Composability》。插件向共享上下文贡献服务、类型化事件与<b>可逆的副作用</b>。</p>
+    </div>
+    <div class="card">
+      <h3>怎么跑起来</h3>
+      <pre style="margin-top:4px"><code>npx @deepseek-ai/dsh web
+# → http://127.0.0.1:3080</code></pre>
+    </div>
+  </div>
+  <div class="stats">
+    <div><div class="n">219</div><div class="l">工作区包（<code>packages/*/*</code>）</div></div>
+    <div><div class="n">49</div><div class="l">包组（core / llm / fs / shell …）</div></div>
+    <div><div class="n">3</div><div class="l">官方组合包 base / web-app / headless</div></div>
+    <div><div class="n">6</div><div class="l">并存的 subagent 后端</div></div>
+  </div>
+</section>
+
+<!-- 03 ─────────────────────────────────────── -->
+<section class="slide">
+  <div class="eyebrow">问题定义</div>
+  <h2>为什么要把 harness 拆成插件树</h2>
+  <p class="lede">大多数 agent 产品有一个"特权内核"：循环、工具、上下文管理写死在一起。想改行为，要么 fork，要么打补丁，要么等上游合 PR。dsh 用另一条路线回答这件事。</p>
+  <div class="vs">
+    <div class="old">
+      <h3>单体内核</h3>
+      <ul>
+        <li>扩展 = fork 仓库 / monkey patch / 等待上游</li>
+        <li>能力写死在循环里，加一个工具要动主流程</li>
+        <li>换执行环境（远程沙箱）要为每个提供方做专用 fork</li>
+        <li>卸载一个功能没有明确边界，残留状态靠人记</li>
+      </ul>
+    </div>
+    <div class="new">
+      <h3>dsh 的插件树</h3>
+      <ul>
+        <li>扩展 = 把插件挂到别的插件旁边，不碰任何核心</li>
+        <li>每一项注册都是<b>可撤销的副作用</b>，卸载即还原</li>
+        <li>换一个服务提供方，整条能力链一起搬走</li>
+        <li>加载顺序由服务依赖推导，不需要手写启动序列</li>
+      </ul>
+    </div>
+  </div>
+  <div class="quote">
+    不存在需要打补丁的特权内核：扩展 dsh 的方式是把插件挂载到其他插件旁边，而各项注册都是副作用，会在其插件卸载时撤销。
+    <cite>docs/architecture.zh.md</cite>
+  </div>
+  <div class="note"><b>代价先说在前面：</b>把编译期的确定性换成了配置期的组合自由。这笔账靠一整套工程纪律来平（第 22 页）。</div>
+</section>
+
+<!-- 04 ─────────────────────────────────────── -->
+<section class="slide">
+  <div class="eyebrow">底座 · Cordis</div>
+  <h2>五个核心概念，撑起整个架构</h2>
+  <div class="grid g2">
+    <div class="card"><div class="row"><span class="num">1</span><div>
+      <h3>插件是实现 Service 的对象</h3>
+      <p>可以是带可选 <code>inject</code> 和 <code>apply(ctx)</code> 的函数，也可以是 <code>Service</code> 子类，生命周期由 Cordis 挂载到当前上下文。</p>
+    </div></div></div>
+    <div class="card"><div class="row"><span class="num">2</span><div>
+      <h3>上下文是服务的容器</h3>
+      <p>一个服务占据一个稳定的 <code>ctx.&lt;key&gt;</code>（<code>ctx.tools</code>、<code>ctx.llm</code>、<code>ctx.sessions</code>）。<b>别的插件按 key 查找服务，而不是 import 具体实现</b> —— 这就是可替换性的来源。</p>
+    </div></div></div>
+    <div class="card"><div class="row"><span class="num">3</span><div>
+      <h3>用 <code>inject</code> 声明依赖</h3>
+      <p>插件声明所需服务后，等这些服务就绪才启动。<b>加载顺序通过服务依赖表达，而非手动编排启动序列。</b></p>
+    </div></div></div>
+    <div class="card"><div class="row"><span class="num">4</span><div>
+      <h3>类型化事件用于通信</h3>
+      <p>服务通过 TypeScript <b>声明合并</b>注册事件名，再以 <code>emit</code> / <code>waterfall</code> / <code>parallel</code> / <code>serial</code> 分发。</p>
+    </div></div></div>
+    <div class="card tint-ds" style="grid-column:1/-1"><div class="row"><span class="num">5</span><div>
+      <h3>注册是可逆的副作用</h3>
+      <p>提示词片段、工具 schema、模型适配器、服务提供方、事件监听器 —— 全部通过 <code>ctx.effect()</code> 或 <code>ctx.on()</code> 安装，<b>reload 与 teardown 时按预期撤销</b>。仓库规约写得很直白：<em>Registrations are effects</em>，注册表的 <code>register()</code> 必须返回 disposer。</p>
+    </div></div></div>
+  </div>
+  <div class="note">第 5 条是前四条能成立的前提 —— <b>没有可逆性就没有热插拔</b>，插件树只会变成越挂越脏的全局状态。</div>
+</section>
+
+<!-- 05 ─────────────────────────────────────── -->
+<section class="slide">
+  <div class="eyebrow">底座 · Cordis</div>
+  <h2>四种分发模式，与 waterfall 的陷阱</h2>
+  <div class="grid g23">
+    <div class="tbl">
+      <table>
+        <thead><tr><th>模式</th><th>await?</th><th>分发顺序</th><th>有返回值?</th></tr></thead>
+        <tbody>
+          <tr><td class="k">emit</td><td>否</td><td>按注册顺序观察</td><td>否</td></tr>
+          <tr><td class="k">waterfall</td><td>否</td><td>按注册顺序观察</td><td><b>是</b></td></tr>
+          <tr><td class="k">parallel</td><td><b>是</b></td><td>全部并行观察</td><td>否</td></tr>
+          <tr><td class="k">serial</td><td><b>是</b></td><td>按注册顺序观察</td><td><b>是</b></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card tint-seam">
+      <h3>waterfall = 环绕中间件</h3>
+      <p>监听器收到 <code>(...args, next)</code>。调用 <code>next()</code> 执行下游，下游返回值回到当前包装层，可再包装后向外返回；<b>不调用 <code>next()</code> 直接返回则短路</b>。</p>
+      <p style="margin-top:9px">对单决策事件，短路是<b>设计意图</b>：策略监听器拥有决策权时可以直接返回；而只做标注或观察的监听器<b>必须委托</b>。</p>
+    </div>
+  </div>
+  <div class="card tint-bad">
+    <h3>最容易踩的坑</h3>
+    <p>忘记调用 <code>next()</code> 就等于<b>静默吞掉整条下游链</b> —— 工具流水线里少跑一层策略、提示词少一段、审批被跳过，全都不会报错。所以规约把它写成大写强制项：<em>Waterfall listeners MUST call <code>next()</code></em>。</p>
+  </div>
+  <div class="note">分发模式是事件<b>公开约定的一部分</b>。新事件用 <code>@mode</code> 标签记录模式，生成的目录会把声明和实际分发调用点做交叉校验 —— 声明和用法对不上，门禁直接挂。</div>
+</section>
+
+<!-- 06 ─────────────────────────────────────── -->
+<section class="slide">
+  <div class="eyebrow">运行时形态</div>
+  <h2>跑起来的 <code style="font-size:.82em">dsh</code> 是一棵插件树</h2>
+  <p class="lede">没有"主程序 + 扩展点"这种二元结构。启动时按序叠加的各层组合出一棵树，树上的每个条目都是同一等级的公民。</p>
+  <div class="grid g23">
+    <pre><code>$ dsh --profile web --dump-config
+
+- id: timer          @deepseek-ai/cordis-plugin-timer
+- id: hmr            @deepseek-ai/cordis-plugin-hmr
+- id: llm            @deepseek-ai/dsh-llm
+- id: session        @deepseek-ai/dsh-session
+- id: typert         @deepseek-ai/dsh-typert-registry
+- id: session-title  @deepseek-ai/dsh-session-title
+- id: agent          @deepseek-ai/dsh-agent
+- id: agent-loop     @deepseek-ai/dsh-agent-loop   ← 连循环也在这里
+- id: tools          @deepseek-ai/dsh-tools
+- id: tool-bash      @deepseek-ai/dsh-tool-bash
+- id: sandbox-local  @deepseek-ai/dsh-sandbox-local
+- ...</code></pre>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="card tint-ds">
+        <h3>这条命令就是心智模型</h3>
+        <p><b>它打印出的任何条目，都可以由你自己的 patch 替换。</b>包括 <code>agent-loop</code>。</p>
+      </div>
+      <div class="card">
+        <h3>行序不代表加载语义</h3>
+        <p>激活由<b>服务可用性</b>驱动（谁 inject 了什么），YAML 里的顺序只是为了给人读。</p>
+      </div>
+      <div class="card">
+        <h3>HMR 是一等公民</h3>
+        <p><code>cordis-plugin-hmr</code> 在基础层里 —— 可逆副作用让插件热重载成为默认能力，而不是调试彩蛋。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 07 ─────────────────────────────────────── -->
+<section class="slide">
+  <div class="eyebrow">组装机制</div>
+  <h2>Profile 与 Bundle：五层叠加，按 id 覆盖</h2>
+  <div class="grid g23">
+    <div class="stack">
+      <div class="layer"><span class="lb">L0</span><span class="nm">空条目列表</span><span class="why">一切从零开始</span></div>
+      <div class="layer base"><span class="lb">L1</span><span class="nm ds-">@deepseek-ai/dsh-base</span><span class="why">模型适配器 · 工具 · 持久化 · 沙箱与审批策略 · 设置 · 凭据 · 遥测</span></div>
+      <div class="layer mode"><span class="lb">L2</span><span class="nm">dsh-web-app <span class="muted">或</span> dsh-headless</span><span class="why">加浏览器应用；或加一次性运行器且完全不带服务器</span></div>
+      <div class="layer user"><span class="lb">L3</span><span class="nm">profile/cordis.patch.yml</span><span class="why">这个 profile 自己的覆盖</span></div>
+      <div class="layer user"><span class="lb">L4</span><span class="nm">$DSH_HOME/cordis.patch.yml</span><span class="why">整机级覆盖</span></div>
+      <div class="layer user"><span class="lb">L5</span><span class="nm">--patch &lt;overlay&gt;</span><span class="why">本次启动的临时覆盖</span></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:13px">
+      <div class="card tint-seam">
+        <h3>patch 的语义：替换，不是深合并</h3>
+        <p>一条 patch 按 <code>id</code> 定位条目，<b>替换其整个 <code>config</code></b>，或插入新条目。所以"按模式取值不同"的行不会写在 base 里 —— 它属于各自的模式 bundle，让任何一行最多只经过"一个 bundle 层 + 用户层"。</p>
+      </div>
+      <div class="card">
+        <h3>两者都在 package.json 里自我声明</h3>
+        <p><code>dsh.profile</code> 列出一个 profile 叠放的组合包；<code>dsh.bundle</code> 指向一个组合包的 patch 文件。<b>组合包 = 配置项 + 挂载代码的分发格式</b>，所以它插入的内容始终可被上层 patch。</p>
+      </div>
+      <div class="card">
+        <h3>profile 是有状态的目录</h3>
+        <p>存放在 Harness home，含 <code>package.json</code>（记录树外插件依赖）与 <code>cordis.patch.yml</code>。<code>web</code> 和 <code>headless</code> 首次使用自动初始化，其他 profile 必须用 <code>dsh plugin</code> 创建。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 08 ─────────────────────────────────────── -->
+<section class="slide">
+  <div class="eyebrow">核心包</div>
+  <h2>产品主干：七个包与它们的 <code style="font-size:.8em">ctx</code> 键</h2>
+  <div class="tbl">
+    <table>
+      <thead><tr><th style="width:24%">包</th><th style="width:22%">ctx 键</th><th>职责</th></tr></thead>
+      <tbody>
+        <tr><td class="k">core/session</td><td class="k">ctx.sessions</td><td>仅追加的 <code>SessionEvent</code> 日志与内存存储 —— 模型所见上下文的唯一来源</td></tr>
+        <tr><td class="k">core/system-prompt</td><td class="k">ctx.systemPrompt</td><td>提示词片段与工具 schema 的组装</td></tr>
+        <tr><td class="k">core/tools</td><td class="k">ctx.tools</td><td>作用域化的工具注册表 + 带把关的执行流水线</td></tr>
+        <tr><td class="k">core/agent</td><td class="k">ctx.agents</td><td><code>Agent</code> 接口、活跃 agent 注册表、<code>agent/*</code> 事件</td></tr>
+        <tr><td class="k">core/agent-loop</td><td class="k">ctx.agentLoop</td><td>实现该接口的<b>默认</b>驱动器 —— "默认"两字是重点</td></tr>
+        <tr><td class="k">core/scope</td><td class="muted">库，无 ctx 键</td><td>按 agent 划分作用域的注册原语</td></tr>
+        <tr><td class="k">llm/llm</td><td class="k">ctx.llm</td><td>消息与流式词汇表，以及适配器 seam</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="grid g2">
+    <div class="card">
+      <h3>作用域：两级，扁平</h3>
+      <p>一项贡献（工具 / 提示词片段 / 变量 / 限制 / 监听器）要么<b>全局</b>，要么归属<b>恰好一个 scope</b>。<b>作用域注册不向下继承到 subagent</b> —— 子树行为用 lineage 数据表达，不用 scope 结构。</p>
+    </div>
+    <div class="card">
+      <h3>遮蔽（shadowing）：最具体者胜</h3>
+      <p>作用域内的同名工具/片段/变量，只在该 scope 内替换掉全局的同名孪生体。这正是"每个 agent 有自己的人设与工具变体"的实现机制。被限制过滤掉的全局工具，<b>在提示词里消失、执行时也拒绝，与不存在无法区分</b>。</p>
+    </div>
+  </div>
+</section>
+
+<!-- 09 ─────────────────────────────────────── -->
+<section class="slide">
+  <div class="eyebrow">扩展点</div>
+  <h2>事件三域 —— 大多数改动的第一个决定</h2>
+  <p class="lede">"事件就是扩展点，而选对事件域是大多数改动的第一个决定。"域选错了，功能能跑，但会在重载、fork、回放的某一天崩掉。</p>
+  <div class="grid g3">
+    <div class="card tint-ds">
+      <div class="tags" style="margin-bottom:9px"><span class="tag ds">持久</span></div>
+      <h3>会话事件</h3>
+      <p>追加到日志、并通过 <code>session/event</code> 广播的<b>持久事实</b>。</p>
+      <p style="margin-top:8px"><b>什么时候用：</b>当某个事实必须在重新加载后仍然存在。</p>
+      <p style="margin-top:8px" class="mono muted" >turn/* · step/* · user/message<br>assistant/* · tool/*</p>
+    </div>
+    <div class="card tint-evt">
+      <div class="tags" style="margin-bottom:9px"><span class="tag evt">实时</span></div>
+      <h3>Agent 事件 <code>agent/*</code></h3>
+      <p>携带活跃 <code>Agent</code>：inbox、步骤、状态、请求、验证、续跑。</p>
+      <p style="margin-top:8px"><b>什么时候用：</b>要观察或<b>拦截</b>进行中的工作。</p>
+      <p style="margin-top:8px" class="mono muted">agent/pre-step · agent/request<br>agent/turn-stopping</p>
+    </div>
+    <div class="card tint-plug">
+      <div class="tags" style="margin-bottom:9px"><span class="tag plug">解耦</span></div>
+      <h3>能力事件</h3>
+      <p>无需导入循环，即可向某个 seam 附加策略与适配器。</p>
+      <p style="margin-top:8px"><b>什么时候用：</b>给文件系统 / 工具 / 遥测挂策略。</p>
+      <p style="margin-top:8px" class="mono muted">fs/* · tools/* · telemetry/*<br>llm/stream · skills/change</p>
+    </div>
+  </div>
+  <div class="note">仓库里有一份生成的<b>事件映射表</b>（<code>docs/event-producer-consumer.md</code>），逐条列出每个事件的生产方与消费方 —— 这类"谁发谁收"的问题在插件架构里最容易失控，所以他们把它变成了生成产物。</div>
+</section>
+
+<!-- 10 ─────────────────────────────────────── -->
+<section class="slide">
+  <div class="eyebrow">核心流程</div>
+  <h2>轮次流程：一个 turn，零到多个 step</h2>
+  <div class="grid g23">
+    <div class="flow">
+      <ol>
+<li><span class="ev log">turn/start</span></li>
+<li>  领取 next-step 输入 + 一条排队消息</li>
+<li>  组装提示词片段 + 工具 schema</li>
+<li>  → <span class="ev wf">agent/pre-step</span>  reject | enter(messages)</li>
+<li>     被拒 / 首次领取被改写为空 → 关闭一个<b>不含 step 的轮次</b></li>
+<li>     <span class="ev log">step/start</span></li>
+<li>     把 entered 消息追加为 <span class="ev log">user/message</span></li>
+<li>     从日志派生模型历史</li>
+<li>     <span class="ev wf">agent/request</span> → <span class="ev wf">llm/stream</span></li>
+<li>       → <span class="ev log">assistant/chunk*</span> → <span class="ev log">assistant/message</span></li>
+<li>     <span class="ev log">tool/call*</span> → <span class="ev wf">tools/pre-execute</span></li>
+<li>       → <span class="ev wf">tools/execute</span> → <span class="ev wf">tools/post-execute</span></li>
+<li>       → <span class="ev log">tool/result*</span></li>
+<li>     <span class="ev log">step/end</span></li>
+<li>     工具还欠一次请求，或新输入到达 → 领取 → 下一 step</li>
+<li>  → <span class="ev ext">agent/turn-stopping</span> <span class="muted">（serial，无 next()）</span></li>
+<li><span class="ev log">turn/end</span></li>
+      </ol>
+      <div class="legend">
+        <span><span class="ev log">持久会话事件</span> 可回放</span>
+        <span><span class="ev wf">waterfall</span> 监听器必须 next()</span>
+        <span><span class="ev ext">实时扩展点</span></span>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:13px">
+      <div class="card tint-ds">
+        <h3>两个定义</h3>
+        <p><b>步骤</b> = 一次模型请求 + 它调用的工具。<br><b>轮次</b> = 零个或多个步骤：在领取首条输入之前打开，在不再欠下任何工作时关闭。</p>
+      </div>
+      <div class="card">
+        <h3><code>agent/pre-step</code> 决定模型看到什么</h3>
+        <p>监听器可以改写已领取的消息，也可以直接拒绝。<b>即便被拒绝，仍然会关闭一个不含步骤的持久轮次</b> —— 于是日志里留下了"这次尝试发生过"的记录。</p>
+      </div>
+      <div class="card">
+        <h3>inbox 的两种消息</h3>
+        <p>有些消息会立即唤醒驱动器；<b>注入的上下文会留在 inbox 中，直到另一条消息把它唤醒</b>。<code>agent.inject()</code> 就落在这条路径上。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 11 ─────────────────────────────────────── -->
+<section class="slide">
+  <div class="eyebrow">核心不变量</div>
+  <h2>模型可见 ⟺ 已记录</h2>
+  <div class="quote" style="border-left-color:var(--ds);font-size:17px">
+    抵达模型请求的一切都必须能从日志重建 —— 并由一项<b>运行时不变量</b>断言这一点。
+    <cite>docs/architecture.zh.md · 会话日志</cite>
+  </div>
+  <div class="grid g3">
+    <div class="card">
+      <h3>投影，而不是并行状态</h3>
+      <p><code>deriveMessages()</code> 从日志投影出模型历史；原始 <code>assistant/chunk</code> 事件保证<b>回放与 UI 保真</b>。没有第二份"真相"。</p>
+    </div>
+    <div class="card">
+      <h3>一切都派生自同一条流</h3>
+      <p>fork、恢复、transcript、遥测、持久化 —— 全部派生自该事件流。所以"能不能 fork 一个会话"不是功能，是结构的推论。</p>
+    </div>
+    <div class="card tint-seam">
+      <h3>它对开发者的约束</h3>
+      <p>新增一项模型可见输入 <b>=</b> 新增一个会话事件：扩展 <code>SessionEventMap</code>，并从日志渲染。想偷偷塞点上下文给模型？门禁不让。</p>
+    </div>
+  </div>
+  <div class="grid g2">
+    <div class="card">
+      <h3>类型层面的强制</h3>
+      <p><code>SessionEventMap</code> 的成员<b>默认是"读取时必需"</b>：不认识这个类型的构建会<b>拒绝</b>这份日志，除非事件带上信封的 <code>ignorable: true</code>。只有结构性格式变更才会提升 <code>SESSION_FORMAT_VERSION</code>。</p>
+    </div>
+    <div class="card">
+      <h3>落到磁盘</h3>
+      <p>持久化本身也是 seam：<code>ctx.sessionPersistence</code> 背后是 <code>-jsonl</code> 或 <code>-sqlite</code> 两个提供方。SQLite 用单调递增的 <code>SCHEMA_VERSION</code>；<b>预览期 <code>SESSION_FORMAT_VERSION</code> 停在 0，不作任何兼容承诺，后端直接拒绝旧的磁盘格式</b>。</p>
+    </div>
+  </div>
+</section>
+
+<!-- 12 ─────────────────────────────────────── -->
+<section class="slide">
+  <div class="eyebrow">可替换性的单位</div>
+  <h2>能力 seam：三个角色，缺一不成立</h2>
+  <div class="seam3">
+    <div style="border-top:3px solid var(--ds)">
+      <div class="role" style="color:var(--ds)">Service Definition</div>
+      <h3>声明接口的那一个</h3>
+      <p style="font-size:13.5px;color:var(--ink-2);margin-top:7px">拥有自己的 <code>ctx.&lt;key&gt;</code> 与词汇类型。可以是抽象类，也可以是具体注册表 —— <b>但绝不是 TypeScript <code>interface</code></b>。</p>
+      <div class="ex"><b>dsh-shell</b><br><span class="muted">→ ctx.shell / ShellExecutor</span></div>
+    </div>
+    <div style="border-top:3px solid var(--plug)">
+      <div class="role" style="color:var(--plug)">Service Provider</div>
+      <h3>实现它的那一批</h3>
+      <p style="font-size:13.5px;color:var(--ink-2);margin-top:7px">可以有多个。换掉它，就换掉了这项能力的<b>实际执行世界</b>，而消费方一行不改。</p>
+      <div class="ex"><b>dsh-bash-local</b><br><b>dsh-bash-sandbox</b><br><span class="muted">（Windows 侧：dsh-pwsh-*）</span></div>
+    </div>
+    <div style="border-top:3px solid var(--seam)">
+      <div class="role" style="color:var(--seam)">Consumer</div>
+      <h3>使用它的那一批</h3>
+      <p style="font-size:13.5px;color:var(--ink-2);margin-top:7px">通常是<b>面向模型的工具</b>。它 inject 服务，因此对提供方的差异完全无感。</p>
+      <div class="ex"><b>dsh-tool-bash</b><br><span class="muted">→ 模型看到的 <code>bash</code> 工具</span></div>
+    </div>
+  </div>
+  <div class="grid g2">
+    <div class="card tint-bad">
+      <h3>规约里的硬话</h3>
+      <p><b>seam 是完整的能力，永远不是其中某一个角色。</b>添加一项能力意味着把三者一并设计；只写了个 provider 不叫加了 seam。角色通常各占一个包（当它们独立演化时），但一个包也可以同时承担多个角色。</p>
+    </div>
+    <div class="card">
+      <h3>为什么不用 <code>interface</code></h3>
+      <p>因为 seam 要在<b>运行时</b>被查找、被替换、被卸载。TS <code>interface</code> 编译后什么都不剩，无法承载 <code>ctx</code> 键、生命周期和可逆注册。这条规矩把"可替换"从文档承诺变成了类型系统事实。</p>
+    </div>
+  </div>
+</section>
+
+<!-- 13 ─────────────────────────────────────── -->
+<section class="slide">
+  <div class="eyebrow">杠杆</div>
+  <h2>换一个提供方，为什么能改变整个产品</h2>
+  <div class="grid g2">
+    <div class="card tint-ds">
+      <h3>共享执行世界</h3>
+      <p>文件系统与进程提供方共享同一个"执行世界"。于是 —— <b>把它们指向远程沙箱，也就把 Bash、PTY 和 LSP 一并搬了过去</b>，无需任何提供方专用的 fork。</p>
+      <p style="margin-top:9px" class="muted">仓库里的 <code>packages/e2b</code> 就是这个 POC：sandbox + FS/subprocess 适配器，三个包换掉整台"机器"。</p>
+    </div>
+    <div class="card tint-plug">
+      <h3>同一接口，差异可以非常大</h3>
+      <p>subagent 提供方在同一个接口之后千差万别：从<b>新建一个子 agent</b>，到<b>把一个轮次直接委派给另一个产品</b>（Claude Code / Codex）。消费方那边只是调了同一个方法。</p>
+    </div>
+  </div>
+  <div class="card">
+    <h3>但边界也划得很清楚</h3>
+    <p>容器、microVM、远程执行<b>不是</b> <code>ctx.sandbox</code> 的提供方，而是<b>整条能力 seam 的兄弟实现</b>。—— 这类"什么算 provider、什么算另一条 seam"的判断，决定了插件架构会不会退化成"什么都能插，于是什么都插不准"。</p>
+  </div>
+  <div class="note"><b>反面教训在仓库里也有：</b><code>docs/postmortem/</code> 有四篇复盘，其中一篇专讲 ACP 的默认导出把 <code>inject</code> 丢了，另一篇讲 <code>!!js</code> 表达式意外禁用了整组文件系统工具 —— 组合式架构的失败模式，往往是"某一层静默地什么都没装上"。</div>
+</section>
+
+<!-- 14 ─────────────────────────────────────── -->
+<section class="slide">
+  <div class="eyebrow">模型面</div>
+  <h2>模型实际看到的工具</h2>
+  <div class="tools">
+    <div class="toolbox"><h3>文件</h3>
+      <span>read</span><span>write</span><span>edit</span><span>read_image</span><span>str_replace_editor</span><span>glob</span><span>grep</span></div>
+    <div class="toolbox"><h3>执行</h3>
+      <span>bash</span><span>pwsh</span><span>terminal_open</span><span>terminal_send</span><span>terminal_read</span><span>terminal_signal</span><span>terminal_list</span><span>terminal_close</span><span>job_list</span><span>job_output</span><span>job_kill</span></div>
+    <div class="toolbox"><h3>规划与状态</h3>
+      <span>todo_write</span><span>exit_plan_mode</span><span>create_goal</span><span>get_goal</span><span>update_goal</span><span>schedule_create</span><span>schedule_list</span><span>schedule_delete</span></div>
+    <div class="toolbox"><h3>委派</h3>
+      <span>subagent</span><span>subagent_fork</span><span>send_message</span><span>interrupt_agent</span><span>list_agents</span><span>report</span><span>workflow</span><span>ralph</span></div>
+    <div class="toolbox"><h3>知识与检索</h3>
+      <span>skill</span><span>web_search</span><span>web_fetch</span><span>lsp</span><span>session_search</span><span>session_trace</span><span>session_event_read</span><span>session_event_search</span><span>session_event_trace</span></div>
+    <div class="toolbox"><h3>交互</h3>
+      <span>ask_user_question</span></div>
+    <div class="toolbox"><h3>特殊传输</h3>
+      <span>run_code</span> <span class="muted">← Code Mode</span></div>
+    <div class="toolbox"><h3>自我修改 <span class="tag" style="font-size:9px">默认不装</span></h3>
+      <span>cordis_define</span><span>cordis_run</span><span>cordis_stop</span><span>cordis_undefine</span><span>cordis_inspect_self</span><span>cordis_inspect_list</span><span>cordis_inspect_query</span></div>
+  </div>
+  <div class="card tint-seam">
+    <h3>一个很能说明这个项目性格的细节</h3>
+    <p><code>docs/tool-catalog.md</code> 是<b>生成</b>的，而且生成器<b>真的会把每个工具插件 boot 到一个真实 context 上</b>，再读 <code>ctx.tools.schemas()</code> —— 因为工具 schema 静态不可知（运行时展开的枚举、拼接的描述、配置驱动的名字、原始 JSON-Schema 的 MCP 工具）。还有一道完整性守卫会 glob <code>packages/*/tool-*</code>，<b>任何新工具没被登记进生成器清单，构建就失败</b>。</p>
+  </div>
+</section>
+
+<!-- 15 ─────────────────────────────────────── -->
+<section class="slide">
+  <div class="eyebrow">值得单独讲</div>
+  <h2>Code Mode：把 N 次工具往返压成一段程序</h2>
+  <div class="grid g23">
+    <div style="display:flex;flex-direction:column;gap:13px">
+      <div class="card tint-ds">
+        <h3>它不是"又一个工具"</h3>
+        <p><code>run_code</code> 由<b>工具注册表自己拥有</b>，是一条位于可过滤能力层之外的<b>保留传输通道</b>。在 <code>mode: code</code> 下，<b>它是注册表唯一的 wire 贡献</b>。</p>
+      </div>
+      <div class="card">
+        <h3>其他能力去哪了</h3>
+        <p>变成提示词里一段<b>生成的 SDK 声明</b>（用当前运行时的语言写）。程序通过绑定去调它们 —— 每个嵌套调用会<b>重新进入完整的受把关工具流水线</b>，并链接回外层结果。</p>
+      </div>
+      <div class="card">
+        <h3>并发有明确契约</h3>
+        <p>提交顺序决定启动顺序与策略；并发安全的调用体最多重叠到 <code>maxParallelSubCalls</code>。</p>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:13px">
+      <pre><code>// 模型写的是程序，不是一串 tool_call
+const files = await fs.glob("src/**/*.ts")
+const hits  = await Promise.all(
+  files.map(f =&gt; fs.grep(f, /TODO/))
+)
+return hits.filter(h =&gt; h.length)</code></pre>
+      <div class="card tint-plug">
+        <h3>Code Runtime 也是一条 seam</h3>
+        <p><code>ctx.codeRuntime</code> 跑一段模型写的程序，对接宿主提供的异步绑定，并报告它打印了什么、返回了什么。后端按<b>执行基底</b>与<b>源语言</b>区分，两者都是服务上的只读描述符。</p>
+        <p style="margin-top:8px">默认提供方跑在 <b>worker thread</b> 里。<code>CodeRunRequest</code> 严格遵守"边界上显式优于隐式"：时间预算、输出上限是实现的<b>受校验配置</b>，不是 <code>run()</code> 里藏一个 <code>??</code>。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 16 ─────────────────────────────────────── -->
+<section class="slide">
+  <div class="eyebrow">委派</div>
+  <h2>Subagent：唯一允许多提供方并存的 seam</h2>
+  <p class="lede">它和别的 seam 不一样：<b>多个提供方按名字同时存在于一个 context 里</b>（<code>ctx.subagents</code>），follow 的是 LLM 适配器注册表的模式，而不是单例 bash executor。</p>
+  <div class="grid g3">
+    <div class="card"><h3>进程内</h3><p class="mono" style="font-size:12.5px">dsh-subagent-spawn-in-process<br>dsh-subagent-fork</p><p style="margin-top:7px">新建子 agent，或从当前会话 fork 一份。</p></div>
+    <div class="card"><h3>跨协议</h3><p class="mono" style="font-size:12.5px">dsh-subagent-acp<br>dsh-subagent-dsh-sdk</p><p style="margin-top:7px">通过 ACP 或 JSON-RPC SDK 驱动另一个运行时。</p></div>
+    <div class="card tint-plug"><h3>跨产品</h3><p class="mono" style="font-size:12.5px">dsh-subagent-codex<br>dsh-subagent-claude-code</p><p style="margin-top:7px"><b>把一个轮次直接委派给别家的编码 agent。</b></p></div>
+  </div>
+  <div class="grid g2">
+    <div class="card tint-seam">
+      <h3>两类能力，两种发现方式</h3>
+      <p><b>start-time 能力</b>写在静态描述符上（<code>outputSchema</code> / <code>depthLimit</code> / <code>toolFilter</code> …），服务在 run 存在<b>之前</b>就检查。<br><b>continuable（可续跑）子 agent</b>由续跑管理器自己组装，因此只由一个可选方法把关：<code>prepareContinuable</code> —— <b>方法存在与否本身就是能力</b>，用 TypeScript 收窄作为发现机制。</p>
+    </div>
+    <div class="card tint-bad">
+      <h3>不支持就大声失败</h3>
+      <p>请求用到提供方没有的能力，直接 <code>SubagentError('UNSUPPORTED_CAPABILITY')</code> 拒绝，<b>绝不"接受了再静默忽略"</b>。这条"fail loud, no silent degradation"贯穿全仓库 —— 在一个什么都能换的架构里，静默降级是最贵的 bug 类别。</p>
+    </div>
+  </div>
+</section>
+
+<!-- 17 ─────────────────────────────────────── -->
+<section class="slide">
+  <div class="eyebrow">长任务策略</div>
+  <h2>Goal / Ralph / Workflow：都是策略，不是循环改动</h2>
+  <div class="grid g3">
+    <div class="card">
+      <h3>Goal · 同会话的持久目标</h3>
+      <p>挂在<b>已有会话</b>上的一个持久完成目标，带 <code>active</code> / <code>paused</code> / <code>blocked</code> / <code>complete</code> 相位与轮数上限。它是<b>状态</b>，不是调度器、也不是另一段对话；会话日志仍是唯一真相。</p>
+      <p style="margin-top:9px"><b>安全设计：</b>创建、编辑、暂停、恢复要求"直接人类根权限"；而 goal <b>激活状态刻意不进持久回放</b> —— 所以 resume 与 fork 之后，必须由人再授权一次才能自动继续干活。</p>
+    </div>
+    <div class="card">
+      <h3>Ralph · 每轮都换一个新脑子</h3>
+      <p>朝一个<b>不可变目标</b>推进的前台工作流：每一轮开一个<b>全新子会话</b>，<b>不带父会话或前一轮的对话种子</b>。</p>
+      <p style="margin-top:9px">跨轮状态只靠两样东西传递：共享的 workspace，以及一份<b>有界的结构化 handoff</b>（status / summary / evidence / next steps / blocker）。handoff 是补充，不取代 workspace 的权威地位。</p>
+      <p style="margin-top:9px" class="muted">—— 一个明确对抗上下文腐化的设计。</p>
+    </div>
+    <div class="card">
+      <h3>Workflow · 确定性编排</h3>
+      <p><code>ctx.workflowEngine</code> 的默认提供方跑在 worker thread 里；脚本派生的子 agent 由<b>调用方 agent 作父</b>。</p>
+      <p style="margin-top:9px">加上 <code>packages/schedule</code>（<code>schedule_create</code> 等三个工具，只在 opt-in 后、且只在插件加载之后创建的 root agent 作用域里注册），构成"让 agent 安排未来工作"的那一层。</p>
+    </div>
+  </div>
+  <div class="note">三者的共同点：<b>都建立在已有原语（workflow + subagent + 会话）之上，没有一个动了 agent-loop。</b>规约里那条 <em>Plugins, not loop changes</em> —— 改 <code>agent-loop</code> 必须同时更新 <code>docs/architecture.md</code> —— 让"改循环"变成一件需要交代的事。</div>
+</section>
+
+<!-- 18 ─────────────────────────────────────── -->
+<section class="slide">
+  <div class="eyebrow">安全</div>
+  <h2>沙箱：只管文件效果，且把"没管住"如实上报</h2>
+  <div class="grid g23">
+    <div class="tbl">
+      <table>
+        <thead><tr><th>SandboxMode</th><th>含义</th></tr></thead>
+        <tbody>
+          <tr><td class="k">read-only</td><td>请后端拒绝写入 —— POSIX 运行器额外放行 shell 必需的 <code>/dev/null</code> 汇；Windows ACL 运行器不授予任何可写根，并<b>报告部分执行</b></td></tr>
+          <tr><td class="k">workspace-write</td><td>允许写入 workspace 根目录，以及后端承诺的临时区</td></tr>
+          <tr><td class="k">danger-full-access</td><td>绕过约束 —— <b>此模式下消费方根本不调用 <code>ctx.sandbox</code></b>，直接 spawn 原始 argv</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card tint-bad">
+      <h3>划界写得很克制</h3>
+      <p><b>网络与进程可见性不在这套词汇里。</b>不承诺就不写进类型 —— 比含糊的"沙箱化"三个字有用得多。</p>
+    </div>
+  </div>
+  <div class="grid g3">
+    <div class="card">
+      <h3>三个平台后端</h3>
+      <p class="mono" style="font-size:12.5px">Linux&nbsp;&nbsp;bwrap / Landlock<br>macOS&nbsp;&nbsp;Seatbelt<br>Windows ACL 受限令牌</p>
+      <p style="margin-top:8px" class="muted">由 <code>dsh-sandbox-local</code> 提供；<code>dsh-bash-sandbox</code> / <code>dsh-pwsh-sandbox</code> 消费。</p>
+    </div>
+    <div class="card tint-seam">
+      <h3>enforcement 是<b>被上报的事实</b></h3>
+      <p><code>full</code> = 后端管住了该模式承诺的每一项文件效果；<code>partial</code> = 只管住了一部分（老 Landlock ABI、Windows 的 Everyone / 硬链接边界）。<b>需要绝对承诺的消费方必须拒绝执行，或把这个区别暴露出来。</b></p>
+    </div>
+    <div class="card">
+      <h3>它已经咬过人一次</h3>
+      <p><code>docs/postmortem/0004</code>：Landlock 的 <code>partial</code> 通知<b>把子进程失败误分类了</b>。—— 把"部分执行"做成一等公民的类型，正是因为它在现实里真的会发生。</p>
+    </div>
+  </div>
+  <div class="note"><b>审批是另一层：</b><code>packages/interaction</code> 提供 approval / permission / ask-user 能力。当某个操作在当前权限策略下需要审批时，Web UI 会先问你 —— 沙箱管"能不能做到"，审批管"该不该做"。</div>
+</section>
+
+<!-- 19 ─────────────────────────────────────── -->
+<section class="slide">
+  <div class="eyebrow">进阶能力</div>
+  <h2>Skills，以及让 agent 改自己</h2>
+  <div class="grid g2">
+    <div class="card">
+      <h3>Skills：分层合并的目录</h3>
+      <p><code>ctx.skills</code> 跨 <b>host 层 + 每个 scope 层</b>合并提供方目录：仓库插件落到全局层，由 agent preset 的常驻组合挂载的插件落到该 preset 的层。<b>读取时最近的层直接赢下同名冲突</b>，同层内才按 rank → 提供方顺序 → 本地顺序裁决。</p>
+      <p style="margin-top:9px">发现缓存按解析后的 scope 链做键，所以重新挂父（比如空会话重组）不需要改动注册表，下一次读取就能看到。</p>
+      <p style="margin-top:9px" class="muted">skill 是<b>可选指令</b>，不是会话事件 —— 所以它的词汇不住在核心里。</p>
+    </div>
+    <div class="card tint-bad">
+      <h3>自我修改：刻意不装</h3>
+      <p><code>cordis_define</code> / <code>cordis_run</code> / <code>cordis_inspect_*</code> 让 agent <b>检查并挂载自己的插件</b>，运行中的包还能继续注册新的模型可见工具，直到被 stop / undefine 或重启。</p>
+      <p style="margin-top:9px"><b>它不在任何发行树里。</b>仓库注释写得很直接：动态包代码会真的进到实际运行时 —— 所以这是一个<b>刻意的 opt-in</b>，配套 <code>dsh-cordis-host-runner</code> 提供定义注册表与 vm 沙箱，组合里缺了它，这些工具根本不会激活。</p>
+      <p style="margin-top:9px" class="muted">仓库还带一个 <code>pnpm run demo:cordis</code> 演示："agent 修改自己的运行时"。</p>
+    </div>
+  </div>
+  <div class="card tint-plug">
+    <h3>Extensions：比工具更重的一层</h3>
+    <p>让 agent 定义<b>带版本的 Cordis 包</b>，运行其 <b>host 与 browser 两半</b>，并在写代码之前查询已批准的运行时元数据（<code>ctx.cordisInspect</code> 同时管 Host 与 Client 两侧的提供方目录）。—— 也就是说，agent 可以给 Web UI 自己加界面。</p>
+  </div>
+</section>
+
+<!-- 20 ─────────────────────────────────────── -->
+<section class="slide">
+  <div class="eyebrow">生态位</div>
+  <h2>它不要求你迁移，而是把别人的资产挂进来</h2>
+  <div class="grid g4">
+    <div class="card tint-ds">
+      <h3>Hooks 桥接</h3>
+      <p class="mono" style="font-size:12px">hook-protocol<br>hooks-claude-code<br>hooks-codex</p>
+      <p style="margin-top:8px">直接实现 <b>Claude Code / Codex 的 hook 线协议</b> —— 你已有的 hook 配置可以继续用。</p>
+    </div>
+    <div class="card tint-plug">
+      <h3>Subagent 后端</h3>
+      <p>可以把一个轮次<b>委派给 Claude Code 或 Codex</b>，结果按同一个 seam 接口回来。</p>
+    </div>
+    <div class="card">
+      <h3>ACP</h3>
+      <p><b>automation-only</b> 的 Agent Client Protocol 服务器（<code>packages/acp</code>）—— 面向编辑器与自动化。</p>
+    </div>
+    <div class="card">
+      <h3>MCP</h3>
+      <p><code>packages/mcp</code>；MCP 工具以<b>原始 JSON-Schema</b> 形式进入工具注册表。</p>
+    </div>
+  </div>
+  <div class="card">
+    <h3>怎么读这件事</h3>
+    <p>一个后来者最贵的成本是<b>生态迁移</b>。dsh 的选择是：把已有生态的配置资产（hook、skill 目录、MCP server、甚至整个竞品 agent）当成<b>可挂载的层</b>，而不是要求你先搬家。这和"一切皆插件"是同一条逻辑往外延伸 —— 插件边界既对内也对外。</p>
+  </div>
+  <div class="note"><b>反过来说：</b>这也意味着 dsh 的差异化不在"工具更多"，而在<b>那棵树本身可以被你重写</b>。如果你只想要一个开箱即用的编码 agent，这个卖点对你没有价值。</div>
+</section>
+
+<!-- 21 ─────────────────────────────────────── -->
+<section class="slide">
+  <div class="eyebrow">接入方式</div>
+  <h2>五种驱动它的姿势</h2>
+  <div class="tbl">
+    <table>
+      <thead><tr><th style="width:30%">入口</th><th>用途</th></tr></thead>
+      <tbody>
+        <tr><td class="k">dsh web</td><td><code>--profile web</code> 的别名。启动浏览器 UI（默认 <code>127.0.0.1:3080</code>）。设置 → 模型里填 DeepSeek API key，<b>路由立即可用，不需要重启</b>；选中工作区之前会话输入框不可用。</td></tr>
+        <tr><td class="k">dsh --profile headless "job"</td><td>跑一个全新的持久化会话，<b>打印最终答案并退出</b>。完全不带服务器。</td></tr>
+        <tr><td class="k">dsh plugin --profile &lt;name&gt; …</td><td>在 profile 目录中<b>转发给 pnpm</b>，管理该 profile 的树外插件。</td></tr>
+        <tr><td class="k">ACP server</td><td>automation-only 的 Agent Client Protocol 服务，供编辑器/自动化接入。</td></tr>
+        <tr><td class="k">JSON-RPC / SDK</td><td><code>packages/sdk</code>：协议 + 服务端 + TypeScript 客户端。</td></tr>
+        <tr><td class="k">Python SDK</td><td><code>deepseek-harness-sdk</code>：以<b>子进程</b>方式驱动 harness，stdio 上按行分隔的 JSON-RPC。SDK 默认会启动匹配的内置运行时；<b>客户端可以带默认配置，运行时自己则始终要求显式配置。</b></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card tint-seam">
+    <h3>一条容易踩的参数规则</h3>
+    <p>启动器只解析<b>自己的</b> flag，之后的一切都交给被启动的 profile。所以<b>启动器 flag 必须写在最前面</b>；<b>第一个启动器不认识的 token，标志着应用参数的开始</b>。</p>
+    <pre style="margin-top:10px"><code>dsh --profile web --port 8080     # --port 属于 web 应用
+dsh --profile web --help          # web 应用的 flag
+dsh --help                        # 启动器自己的 help</code></pre>
+  </div>
+</section>
+
+<!-- 22 ─────────────────────────────────────── -->
+<section class="slide">
+  <div class="eyebrow">最值得学的部分</div>
+  <h2>工程纪律：一切皆插件的对价</h2>
+  <p class="lede">插件架构最常见的死法是"能插但没人敢动"。这个仓库把约束几乎全部变成了<b>可执行门禁</b>。</p>
+  <div class="grid g3">
+    <div class="card tint-ds">
+      <h3>覆盖率</h3>
+      <p><code>packages/*/*/src</code> <b>逐文件 100%</b>。而且明确写着：<b><code>test:coverage</code> 才是 CI 门禁，不是 <code>test</code></b>。</p>
+    </div>
+    <div class="card tint-ds">
+      <h3>快照 = 组装后的应用 transcript</h3>
+      <p>每个非平凡的、模型可见或用户可见的行为变化，必须在<b>同一个 PR</b> 里、通过一个真实可运行的 example 补一条 keyless 快照。<b>包级测试、e2e 断言、mock fixture 都不能替代它。</b></p>
+    </div>
+    <div class="card tint-ds">
+      <h3>文档即门禁</h3>
+      <p><code>doc-sync</code> 校验一整批<b>生成产物</b>的新鲜度：工具目录、Cordis API 目录、配置目录、能力图、事件映射。文档漂移会让构建失败。</p>
+    </div>
+    <div class="card">
+      <h3>Agent Notes</h3>
+      <p><b>非平凡改动必须在同一 PR 附一篇设计笔记</b>，只有机械/局部编辑豁免。归档笔记<b>冻结</b> —— 不得编辑，也不得当作现行权威。</p>
+    </div>
+    <div class="card">
+      <h3>不变量断言"拥有的关系"</h3>
+      <p>运行时不变量检查<b>权威事件流或可变数据</b>，而不是"某个服务/方法存不存在"、插件元数据或固定的纯示例。<b>没有可信关系时，一个"被解释过的空伴生物"就是正确答案。</b></p>
+    </div>
+    <div class="card">
+      <h3>在类型化边界上信任 TypeScript</h3>
+      <p><b>不要</b>为静态接口已经保证的值加运行时校验或兜底。只在这些地方校验：parser/config、队列、模型/工具 JSON、持久化/文件、worker、进程、wire。<code>strict</code> + <code>noImplicitAny</code>，每个残留的 <code>any</code> 要解释为什么无法收窄。</p>
+    </div>
+  </div>
+  <div class="note"><b>还有一条很有意思的写作规约：</b>注释与文档只写<b>完整契约与上下文</b>，不写推理过程。写 <code>contract</code>、<code>boundary</code>、<code>shape</code> 之前先问有没有更精确的词 —— 该写 <code>response fields</code> 就别写 <code>response shape</code>。<code>contract</code> 一词保留给"调用方真正依赖的义务"。</div>
+</section>
+
+<!-- 23 ─────────────────────────────────────── -->
+<section class="slide">
+  <div class="eyebrow">实操</div>
+  <h2>新行为该挂在哪：官方映射表</h2>
+  <div class="tbl">
+    <table>
+      <thead><tr><th style="width:38%">你想做的事</th><th>机制</th></tr></thead>
+      <tbody>
+        <tr><td>添加模型提供方</td><td>在 <code class="mono">ctx.llm</code> 上注册其适配器</td></tr>
+        <tr><td>添加面向模型的能力</td><td>在 <code class="mono">ctx.tools</code> 上注册；其 schema 加入提示词组装</td></tr>
+        <tr><td>让某个会话拥有不同的能力集合</td><td>组装一个 agent preset；其中的服务行需要 <code>isolate</code> realm</td></tr>
+        <tr><td>添加 shell 执行</td><td>注册 <code class="mono">ctx.shell</code> 后端；本地后端通过 <code class="mono">ctx.subprocess</code> spawn</td></tr>
+        <tr><td>添加持久化终端执行</td><td>注册 <code class="mono">ctx.terminals</code> 后端 + <code>dsh-tool-terminal</code></td></tr>
+        <tr><td>添加用户命令（斜杠命令）</td><td>在 <code class="mono">ctx.commands</code> 上注册；<b>它无需模型轮次即可分派</b></td></tr>
+        <tr><td>添加后台工作</td><td>在 <code class="mono">ctx.jobs</code> 上注册；<code>job_*</code> 工具负责收集或停止</td></tr>
+        <tr><td>限制所启动的进程</td><td>使用 <code class="mono">ctx.sandbox</code> 后端；消费方在启动进程前包装 argv</td></tr>
+        <tr><td>拦截请求、工具或轮次</td><td>用对应的 <code>agent/*</code> 或 <code>tools/*</code> 事件；<code>agent/turn-stopping</code> 会停止轮次</td></tr>
+        <tr><td>添加模型可见上下文</td><td>调用 <code class="mono">agent.inject()</code>；它会落到<b>下一次获准的请求</b>中</td></tr>
+        <tr><td>添加 UI 或编辑器集成</td><td>驱动 <code class="mono">ctx.agents</code>，并从 <code>session/event</code> 渲染</td></tr>
+        <tr><td>添加持久会话状态</td><td>扩展 <code class="mono">SessionEventMap</code>；从日志渲染和回放</td></tr>
+        <tr><td>将注册项限定到单个 agent</td><td>使用该 agent 的 <code class="mono">agent.ctx</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="note">这张表本身就是架构的<b>验收标准</b>：如果你的需求在表里找不到落点，说明要么你在做的事应该变成一条新 seam，要么你真的需要改循环 —— 而<b>改循环必须同步更新架构文档</b>。</div>
+</section>
+
+<!-- 24 ─────────────────────────────────────── -->
+<section class="slide">
+  <div class="eyebrow">收尾</div>
+  <h2>上手三行，以及一个清醒的判断</h2>
+  <div class="grid g23">
+    <div style="display:flex;flex-direction:column;gap:13px">
+      <pre><code># 最快
+npx @deepseek-ai/dsh web
+
+# 从源码
+git clone https://github.com/deepseek-ai/deepseek-harness.git
+cd deepseek-harness &amp;&amp; pnpm install &amp;&amp; pnpm run build
+pnpm dsh web
+
+# 看清楚你机器上到底装了什么
+dsh --profile web --dump-config</code></pre>
+      <div class="card">
+        <h3>读源码的顺序建议</h3>
+        <p><code>docs/cordis-primer.md</code> → <code>docs/cordis-tutorial/</code>（7 篇） → <code>docs/architecture.md</code> → <code>docs/subsystems/</code>（40+ 篇，中英双语） → <code>docs/cookbook/</code>。中文版全部带 <code>.zh.md</code> 后缀。</p>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:13px">
+      <div class="card tint-bad">
+        <h3>现状：开发者预览，别当生产依赖</h3>
+        <p>明确写着"<b>未来将出现破坏兼容性的变更</b>"。<code>AGENTS.md</code> 里那条预发布姿态更直接：<b>foundation over blast radius</b> —— 没有外部消费者时，优先要正确的地基，可以自由重命名与重新分包，<b>后端直接拒绝旧的磁盘格式</b>。</p>
+      </div>
+      <div class="card tint-ds">
+        <h3>适合谁</h3>
+        <p>想<b>深度定制 harness</b>、想把 agent 能力接到自有执行世界（远程沙箱、内部工具、私有模型）、或者正在<b>设计自己的插件式 agent 架构</b>想找一份完整参考实现的团队。</p>
+      </div>
+      <div class="card">
+        <h3>暂不适合谁</h3>
+        <p>需要稳定 API 的生产集成；只想要一个开箱即用编码助手的个人用户 —— 那部分它做得不错，但那不是它的差异点。</p>
+      </div>
+    </div>
+  </div>
+  <div class="note">
+    <b>参考：</b>
+    github.com/deepseek-ai/deepseek-harness ·
+    仓库内 <code>README.zh.md</code> / <code>docs/architecture.zh.md</code> / <code>docs/cordis-primer.zh.md</code> / <code>docs/glossary.md</code> / <code>docs/tool-catalog.md</code> ·
+    Cordis: github.com/cordiverse/cordis ·
+    论文《A Programming Paradigm for Spatiotemporal Composability》
+    <br><span class="muted">本页所有结论均取自仓库 v0.1.0-rc.5 时点的源码与文档。</span>
+  </div>
+</section>
+
+</main>
+
+<script>
+(function(){
+  var deck = document.getElementById('deck');
+  var slides = Array.prototype.slice.call(deck.querySelectorAll('.slide'));
+  var rail = document.getElementById('rail');
+  var counter = document.getElementById('counter');
+  var bar = document.getElementById('bar');
+  var pad = function(n){ return (n < 10 ? '0' : '') + n; };
+  var current = 0;
+
+  slides.forEach(function(s, i){
+    var b = document.createElement('b');
+    b.setAttribute('tabindex','0');
+    b.setAttribute('role','button');
+    b.setAttribute('aria-label','第 ' + (i+1) + ' 页');
+    b.addEventListener('click', function(){ go(i); });
+    b.addEventListener('keydown', function(e){
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(i); }
+    });
+    rail.appendChild(b);
+  });
+  var dots = Array.prototype.slice.call(rail.children);
+
+  function go(i){
+    i = Math.max(0, Math.min(slides.length - 1, i));
+    deck.scrollTop = slides[i].offsetTop - deck.offsetTop;
+  }
+
+  function mark(i){
+    if (i === current) return;
+    current = i;
+    dots.forEach(function(d, j){ d.classList.toggle('on', j === i); });
+    counter.textContent = pad(i + 1) + ' / ' + pad(slides.length);
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+  }
+
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(en){
+      if (en.isIntersecting) mark(slides.indexOf(en.target));
+    });
+  }, { root: deck, threshold: 0.5 });
+  slides.forEach(function(s){ io.observe(s); });
+
+  dots[0].classList.add('on');
+  counter.textContent = '01 / ' + pad(slides.length);
+  bar.style.width = (1 / slides.length * 100) + '%';
+
+  document.addEventListener('keydown', function(e){
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' '){
+      e.preventDefault(); go(current + 1);
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp'){
+      e.preventDefault(); go(current - 1);
+    } else if (e.key === 'Home'){ e.preventDefault(); go(0); }
+    else if (e.key === 'End'){ e.preventDefault(); go(slides.length - 1); }
+  });
+
+  var ty = null;
+  deck.addEventListener('touchstart', function(e){ ty = e.touches[0].clientY; }, {passive:true});
+  deck.addEventListener('touchend', function(e){
+    if (ty === null) return;
+    var dy = e.changedTouches[0].clientY - ty;
+    if (Math.abs(dy) > 60) go(current + (dy < 0 ? 1 : -1));
+    ty = null;
+  }, {passive:true});
+})();
+</script>
+
+</body>
+</html>
